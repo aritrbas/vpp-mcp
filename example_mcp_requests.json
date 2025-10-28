@@ -1,0 +1,149 @@
+{
+  "description": "Example MCP JSON-RPC requests for testing the VPP MCP server",
+  "note": "Send these via stdio to the vpp-mcp-server process",
+  
+  "1_initialize": {
+    "description": "Initialize the MCP session (required first)",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 1,
+      "method": "initialize",
+      "params": {
+        "protocolVersion": "2024-11-05",
+        "capabilities": {},
+        "clientInfo": {
+          "name": "test-client",
+          "version": "1.0.0"
+        }
+      }
+    }
+  },
+  
+  "2_list_tools": {
+    "description": "List all available tools",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 2,
+      "method": "tools/list",
+      "params": {}
+    }
+  },
+  
+  "3_call_show_version": {
+    "description": "Call vpp_show_version tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 3,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_version",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME",
+          "namespace": "calico-vpp-dataplane",
+          "container_name": "vpp"
+        }
+      }
+    }
+  },
+  
+  "4_call_show_int": {
+    "description": "Call vpp_show_int tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 4,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_int",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME",
+          "namespace": "calico-vpp-dataplane"
+        }
+      }
+    }
+  },
+  
+  "5_call_show_int_addr": {
+    "description": "Call vpp_show_int_addr tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 5,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_int_addr",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "6_call_show_errors": {
+    "description": "Call vpp_show_errors tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 6,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_errors",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "7_call_show_session": {
+    "description": "Call vpp_show_session_verbose tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 7,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_session_verbose",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "8_call_show_npol_rules": {
+    "description": "Call vpp_show_npol_rules tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 8,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_npol_rules",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "9_call_show_npol_policies": {
+    "description": "Call vpp_show_npol_policies tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 9,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_npol_policies",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "usage_example": {
+    "description": "How to use these requests",
+    "steps": [
+      "1. Replace YOUR_POD_NAME with actual VPP pod name",
+      "2. Send initialize request first",
+      "3. Then send other requests in sequence",
+      "4. Example: echo '{...json...}' | ./vpp-mcp-server"
+    ]
+  }
+}

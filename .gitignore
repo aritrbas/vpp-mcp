@@ -1,0 +1,7 @@
+# Build artifacts
+build/
+vpp-mcp-server
+
+# Temporary files
+*.swp
+*.swo
