@@ -63,7 +63,7 @@ run: build
 .PHONY: test
 test:
 	@echo "Running setup tests..."
-	./test_setup.sh
+	./tests/test_mcp_server.sh
 
 # Clean build artifacts
 .PHONY: clean

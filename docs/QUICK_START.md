@@ -4,10 +4,10 @@
 
 ```bash
 # Test everything
-./demo_test.sh calico-vpp-node-hnk97
+../tests/demo_test.sh calico-vpp-node-hnk97
 
 # Test one tool
-./test_tool.sh vpp_show_int calico-vpp-node-hnk97
+../tests/test_tool.sh vpp_show_int calico-vpp-node-hnk97
 ```
 
 ## Available Tools
@@ -46,6 +46,8 @@ Show VPP interfaces for pod calico-vpp-node-hnk97
 ## Use with MCP Inspector
 
 ```bash
+# Run from project root
+cd ..
 npx @modelcontextprotocol/inspector $(pwd)/vpp-mcp-server
 ```
 
@@ -63,6 +65,8 @@ Found:
 ## Manual Test
 
 ```bash
+# Run from project root
+cd ..
 (
   echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
   sleep 0.5
@@ -85,5 +89,5 @@ kubectl exec -n calico-vpp-dataplane calico-vpp-node-hnk97 -c vpp -- vppctl show
 
 ## More Info
 
-- See `TEST_SUMMARY.md` for test results
-- See `README.md` for full documentation
+- See `TEST_SUMMARY.md` for test results (same directory)
+- See `../README.md` for full documentation

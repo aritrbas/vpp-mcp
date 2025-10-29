@@ -260,12 +260,19 @@ vpp-mcp/
 ├── go.sum                       # Go module checksums
 ├── Makefile                     # Build automation
 ├── README.md                    # This file
-├── QUICK_START.md               # Quick reference
-├── test_mcp_server.sh           # Automated test suite
-├── demo_test.sh                 # Demo all tools
-├── test_tool.sh                 # Test individual tools
-├── example_mcp_requests.json    # JSON-RPC examples
-└── vpp-mcp-server               # Compiled binary
+├── .gitignore                   # Git ignore rules
+├── vpp-mcp-server               # Compiled binary
+├── docs/                        # Documentation
+│   ├── QUICK_START.md          # Quick reference
+│   ├── REMOTE_ACCESS.md        # Remote access guide
+│   └── TEST_SUMMARY.md         # Test results
+├── tests/                       # Test scripts
+│   ├── test_mcp_server.sh      # Automated test suite
+│   ├── demo_test.sh            # Demo all tools
+│   ├── test_tool.sh            # Test individual tools
+│   └── test_http_server.sh     # HTTP transport tests
+└── examples/                    # Example files
+    └── example_mcp_requests.json # JSON-RPC examples
 ```
 
 ### Building
@@ -326,17 +333,17 @@ Test the server functionality:
 
 1. Run automated tests:
 ```bash
-./test_mcp_server.sh
+./tests/test_mcp_server.sh
 ```
 
 2. Demo all tools:
 ```bash
-./demo_test.sh <pod-name>
+./tests/demo_test.sh <pod-name>
 ```
 
 3. Test individual tool:
 ```bash
-./test_tool.sh vpp_show_int <pod-name>
+./tests/test_tool.sh vpp_show_int <pod-name>
 ```
 
 ### Dependencies

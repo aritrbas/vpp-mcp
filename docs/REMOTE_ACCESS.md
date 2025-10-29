@@ -286,4 +286,4 @@ sudo systemctl status vpp-mcp-server
 3. Start debugging VPP instances remotely
 4. Implement security measures appropriate for your environment
 
-For more information, see the main [README.md](README.md).
+For more information, see the main [README.md](../README.md).

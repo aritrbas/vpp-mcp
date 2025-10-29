@@ -23,7 +23,9 @@ Your VPP MCP server has been successfully tested with all 10 tools working corre
 
 ### 1. Quick Automated Test
 ```bash
-./test_mcp_server.sh
+# Run from project root
+cd ..
+./tests/test_mcp_server.sh
 ```
 - Verifies server startup
 - Lists all tools
@@ -32,7 +34,9 @@ Your VPP MCP server has been successfully tested with all 10 tools working corre
 
 ### 2. Demo All Tools
 ```bash
-./demo_test.sh <pod-name>
+# Run from project root
+cd ..
+./tests/demo_test.sh <pod-name>
 ```
 - Tests all 10 tools sequentially
 - Shows actual output from each tool
@@ -40,12 +44,14 @@ Your VPP MCP server has been successfully tested with all 10 tools working corre
 
 ### 3. Test Individual Tool
 ```bash
-./test_tool.sh <tool-name> <pod-name> [namespace]
+# Run from project root
+cd ..
+./tests/test_tool.sh <tool-name> <pod-name> [namespace]
 ```
 Examples:
 ```bash
-./test_tool.sh vpp_show_int calico-vpp-node-hnk97
-./test_tool.sh vpp_show_errors calico-vpp-node-hnk97
+./tests/test_tool.sh vpp_show_int calico-vpp-node-hnk97
+./tests/test_tool.sh vpp_show_errors calico-vpp-node-hnk97
 ```
 
 ### 4. Direct kubectl Testing
@@ -144,14 +150,14 @@ Count       Node                    Reason
 [rule#15;allow][proto==UDP,dst==53]
 ```
 
-## Files Created for Testing
+## Test Files Location
 
-- ✅ `test_mcp_server.sh` - Comprehensive test suite
-- ✅ `demo_test.sh` - Demo all 10 tools
-- ✅ `test_tool.sh` - Test individual tools
-- ✅ `test_simple.sh` - Simple quick test
-- ✅ `example_mcp_requests.json` - JSON-RPC examples
-- ✅ `TEST_SUMMARY.md` - This file
+- ✅ `tests/test_mcp_server.sh` - Comprehensive test suite
+- ✅ `tests/demo_test.sh` - Demo all 10 tools
+- ✅ `tests/test_tool.sh` - Test individual tools
+- ✅ `tests/test_http_server.sh` - HTTP transport tests
+- ✅ `examples/example_mcp_requests.json` - JSON-RPC examples
+- ✅ `docs/TEST_SUMMARY.md` - This file
 
 ## Next Steps
 
@@ -169,8 +175,8 @@ Count       Node                    Reason
 
 ## Documentation
 
-- `README.md` - Full project documentation
-- `example_mcp_requests.json` - API reference
+- `../README.md` - Full project documentation
+- `../examples/example_mcp_requests.json` - API reference
 
 ---
 
