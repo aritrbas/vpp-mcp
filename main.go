@@ -4,10 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
+	"net/http"
+	"os"
 	"os/exec"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -822,7 +827,12 @@ func (s *VPPMCPServer) handleDispatchCapture(ctx context.Context, input VPPCaptu
 }
 
 func main() {
-	log.Println("Starting VPP MCP Server with debug logging...")
+	// Parse command-line flags
+	transportMode := flag.String("transport", "stdio", "Transport mode: stdio or http")
+	port := flag.String("port", "8080", "HTTP port (only used when transport=http)")
+	flag.Parse()
+
+	log.Printf("Starting VPP MCP Server with transport=%s...", *transportMode)
 
 	// Create the VPP MCP server instance
 	vppServer := NewVPPMCPServer()
@@ -975,9 +985,31 @@ func main() {
 		return vppServer.handleDispatchCapture(ctx, input)
 	})
 
-	// Create context
-	ctx := context.Background()
+	// Create context with cancellation
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
+	// Handle graceful shutdown
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// Choose transport based on flag
+	switch *transportMode {
+	case "stdio":
+		log.Println("Using stdio transport...")
+		runStdioTransport(ctx, vppServer)
+
+	case "http":
+		log.Printf("Using HTTP transport on port %s...", *port)
+		runHTTPTransport(ctx, vppServer, *port, sigChan)
+
+	default:
+		log.Fatalf("Invalid transport mode: %s. Use 'stdio' or 'http'", *transportMode)
+	}
+}
+
+// runStdioTransport runs the server with stdio transport
+func runStdioTransport(ctx context.Context, vppServer *VPPMCPServer) {
 	// Create stdio transport and connect
 	transport := &mcp.StdioTransport{}
 
@@ -996,4 +1028,71 @@ func main() {
 		log.Fatalf("Server error: %v", err)
 	}
 	log.Println("Session completed")
+}
+
+// runHTTPTransport runs the server with HTTP/SSE transport
+func runHTTPTransport(ctx context.Context, vppServer *VPPMCPServer, port string, sigChan chan os.Signal) {
+	// Create HTTP server with SSE handler
+	mux := http.NewServeMux()
+
+	// MCP SSE endpoint - use NewSSEHandler for automatic session management
+	sseHandler := mcp.NewSSEHandler(func(r *http.Request) *mcp.Server {
+		log.Printf("New SSE connection from %s", r.RemoteAddr)
+		return vppServer.server
+	}, &mcp.SSEOptions{})
+
+	mux.Handle("/sse", sseHandler)
+
+	// Health check endpoint
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("OK"))
+	})
+
+	// Root endpoint with info
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		w.Write([]byte(`<!DOCTYPE html>
+<html>
+<head><title>VPP MCP Server</title></head>
+<body>
+	<h1>VPP MCP Server</h1>
+	<p>This is a Model Context Protocol (MCP) server for VPP debugging.</p>
+	<h2>Endpoints:</h2>
+	<ul>
+		<li><strong>/sse</strong> - MCP SSE endpoint for client connections</li>
+		<li><strong>/health</strong> - Health check endpoint</li>
+	</ul>
+	<p>Use an MCP client to connect to the /sse endpoint.</p>
+</body>
+</html>`))
+	})
+
+	// Create HTTP server
+	httpServer := &http.Server{
+		Addr:    ":" + port,
+		Handler: mux,
+	}
+
+	// Start HTTP server in a goroutine
+	go func() {
+		log.Printf("HTTP server listening on port %s", port)
+		log.Printf("MCP SSE endpoint: http://localhost:%s/sse", port)
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("HTTP server error: %v", err)
+		}
+	}()
+
+	// Wait for shutdown signal
+	<-sigChan
+	log.Println("Shutdown signal received, gracefully shutting down...")
+
+	// Graceful shutdown with timeout
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
+		log.Printf("HTTP server shutdown error: %v", err)
+	}
+	log.Println("Server shutdown complete")
 }

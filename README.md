@@ -9,6 +9,9 @@ This MCP server provides tools to interact with VPP instances for debugging purp
 ## Features
 
 - **Kubernetes Integration**: Executes VPP commands on Kubernetes pods running VPP
+- **Multiple Transport Modes**: 
+  - **Stdio** for local client-server communication
+  - **HTTP/SSE** for remote network access between machines
 - **Multiple VPP Tools**: Ten debugging tools for VPP inspection
   - Version information
   - Interface statistics
@@ -22,6 +25,7 @@ This MCP server provides tools to interact with VPP instances for debugging purp
 - **Official MCP Go SDK**: Uses the official Model Context Protocol Go SDK maintained by Google
 - **Go Implementation**: Fast, efficient, and easy to deploy
 - **Extensible Architecture**: Easy to add more VPP debugging tools
+- **Remote Access**: Connect from any machine to debug VPP instances on remote servers
 
 ## Prerequisites
 
@@ -51,15 +55,38 @@ go build -o vpp-mcp-server main.go
 
 ### Running the MCP Server
 
-Start the server using stdio transport:
+The server supports two transport modes: **stdio** (local) and **http** (network).
+
+#### Stdio Transport (Local)
+
+Start the server using stdio transport (default):
 ```bash
 ./vpp-mcp-server
+```
+
+Or with explicit flag:
+```bash
+./vpp-mcp-server --transport=stdio
 ```
 
 Or run directly with Go:
 ```bash
 go run main.go
 ```
+
+#### HTTP Transport (Network)
+
+Start the server with HTTP transport for remote access:
+```bash
+./vpp-mcp-server --transport=http --port=8080
+```
+
+This exposes the following endpoints:
+- **`http://localhost:8080/sse`** - MCP SSE endpoint for client connections
+- **`http://localhost:8080/health`** - Health check endpoint
+- **`http://localhost:8080/`** - Server information page
+
+For remote access, replace `localhost` with the server's IP address or hostname.
 
 ### Available Tools
 
@@ -152,7 +179,9 @@ You need to provide:
 
 ### MCP Client Configuration
 
-To use this server with an MCP client, add it to your client's configuration. For example, with Claude Desktop, add to your `claude_desktop_config.json`:
+#### Local Configuration (Stdio Transport)
+
+To use this server with an MCP client on the same machine, add it to your client's configuration. For example, with Claude Desktop, add to your `claude_desktop_config.json`:
 
 ```json
 {
@@ -163,6 +192,54 @@ To use this server with an MCP client, add it to your client's configuration. Fo
     }
   }
 }
+```
+
+#### Remote Configuration (HTTP Transport)
+
+For remote access from **Machine Y** to **Machine X**:
+
+**On Machine X (Server):**
+1. Start the server with HTTP transport:
+```bash
+./vpp-mcp-server --transport=http --port=8080
+```
+
+2. Ensure the port is accessible (check firewall rules):
+```bash
+# Example: Allow port 8080 on Ubuntu/Debian
+sudo ufw allow 8080/tcp
+```
+
+**On Machine Y (Client):**
+Configure your MCP client to connect to the HTTP endpoint. For example, with Claude Desktop:
+
+```json
+{
+  "mcpServers": {
+    "vpp-debug-remote": {
+      "url": "http://<machine-x-ip>:8080/sse",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+Replace `<machine-x-ip>` with the actual IP address or hostname of Machine X.
+
+**Security Considerations:**
+- The HTTP transport does not include authentication by default
+- For production use, consider adding:
+  - Reverse proxy with TLS (nginx, Apache)
+  - API authentication (API keys, OAuth)
+  - Network security (VPN, SSH tunneling)
+  - Firewall rules to restrict access
+
+**Example with SSH Tunnel (Secure Alternative):**
+```bash
+# On Machine Y, create SSH tunnel
+ssh -L 8080:localhost:8080 user@machine-x
+
+# Then configure client to use localhost:8080
 ```
 
 ### Customizing Default Settings
