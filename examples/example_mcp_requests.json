@@ -137,6 +137,169 @@
     }
   },
   
+  "10_call_show_npol_ipset": {
+    "description": "Call vpp_show_npol_ipset tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 10,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_npol_ipset",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "11_call_show_npol_interfaces": {
+    "description": "Call vpp_show_npol_interfaces tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 11,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_npol_interfaces",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "12_call_get_pods": {
+    "description": "Call vpp_get_pods tool (no pod_name required)",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 12,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_get_pods",
+        "arguments": {}
+      }
+    }
+  },
+  
+  "13_call_clear_errors": {
+    "description": "Call vpp_clear_errors tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 13,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_clear_errors",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "14_call_tcp_stats": {
+    "description": "Call vpp_tcp_stats tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 14,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_tcp_stats",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "15_call_session_stats": {
+    "description": "Call vpp_session_stats tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_session_stats",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "16_call_get_logs": {
+    "description": "Call vpp_get_logs tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 16,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_get_logs",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "17_call_show_cnat_translation": {
+    "description": "Call vpp_show_cnat_translation tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 17,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_cnat_translation",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "18_call_show_cnat_session": {
+    "description": "Call vpp_show_cnat_session tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 18,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_cnat_session",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "19_call_clear_run": {
+    "description": "Call vpp_clear_run tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 19,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_clear_run",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "20_call_show_run": {
+    "description": "Call vpp_show_run tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 20,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_run",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
   "usage_example": {
     "description": "How to use these requests",
     "steps": [

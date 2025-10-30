@@ -307,6 +307,11 @@ type VPPCommandInput struct {
 	ContainerName string `json:"container_name,omitempty"`
 }
 
+// VPPGetPodsInput represents the input for getting calico-vpp pods
+type VPPGetPodsInput struct {
+	// No arguments needed for this tool
+}
+
 // VPPCaptureInput represents the input for VPP packet capture tools (trace, pcap, dispatch)
 type VPPCaptureInput struct {
 	// PodName specifies the name of the Kubernetes pod running VPP
@@ -331,6 +336,68 @@ type VPPMCPServer struct {
 // NewVPPMCPServer creates a new VPP MCP server
 func NewVPPMCPServer() *VPPMCPServer {
 	return &VPPMCPServer{}
+}
+
+// handleGetPods implements listing all calico-vpp pods with IPs and nodes
+func (s *VPPMCPServer) handleGetPods(ctx context.Context, input VPPGetPodsInput) (*mcp.CallToolResult, any, error) {
+	log.Printf("Received vpp_get_pods request")
+
+	// Execute kubectl command to get pods with wide output
+	cmdArgs := []string{
+		"get", "pods",
+		"-n", "calico-vpp-dataplane",
+		"-owide",
+	}
+
+	log.Printf("Executing command: kubectl %s", strings.Join(cmdArgs, " "))
+
+	// Set a timeout for the command
+	cmdCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(cmdCtx, "kubectl", cmdArgs...)
+
+	// Capture stdout and stderr separately
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	execErr := cmd.Run()
+
+	// Get the output
+	output := stdout.String()
+	errOutput := stderr.String()
+
+	if errOutput != "" {
+		log.Printf("Command stderr: %s", errOutput)
+	}
+
+	if execErr != nil {
+		errorMsg := errOutput
+		if errorMsg == "" {
+			errorMsg = execErr.Error()
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error executing kubectl command: %s\nCommand: kubectl %s",
+						errorMsg, strings.Join(cmdArgs, " ")),
+				},
+			},
+		}, nil, nil
+	}
+
+	response := &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: fmt.Sprintf("Calico VPP Pods:\n\n%s\n\nCommand executed: kubectl %s",
+					output, strings.Join(cmdArgs, " ")),
+			},
+		},
+	}
+
+	log.Println("Successfully executed kubectl command, returning result")
+	return response, nil, nil
 }
 
 // handleVPPCommand is a generic handler for VPP commands
@@ -905,7 +972,7 @@ func main() {
 	// Define vpp_show_npol_rules tool
 	toolShowNpolRules := &mcp.Tool{
 		Name: "vpp_show_npol_rules",
-		Description: "Get VPP NPOL rules by running 'vppctl show npol rules' in a Kubernetes VPP container\n\n" +
+		Description: "List rules that are referenced by policies by running 'vppctl show npol rules' in a Kubernetes VPP container\n\n" +
 			"Required parameters:\n" +
 			"- pod_name: The name of the Kubernetes pod running VPP",
 	}
@@ -916,12 +983,39 @@ func main() {
 	// Define vpp_show_npol_policies tool
 	toolShowNpolPolicies := &mcp.Tool{
 		Name: "vpp_show_npol_policies",
-		Description: "Get VPP NPOL policies by running 'vppctl show npol policies' in a Kubernetes VPP container\n\n" +
+		Description: "List all the policies that are referenced on interfaces by running 'vppctl show npol policies' in a Kubernetes VPP container\n\n" +
 			"Required parameters:\n" +
 			"- pod_name: The name of the Kubernetes pod running VPP",
 	}
 	mcp.AddTool(vppServer.server, toolShowNpolPolicies, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
 		return vppServer.handleVPPCommand(ctx, input, "show npol policies", "VPP NPOL Policies")
+	})
+
+	// Define vpp_show_npol_ipset tool
+	toolShowNpolIpset := &mcp.Tool{
+		Name: "vpp_show_npol_ipset",
+		Description: "List ipsets that are referenced by rules (IPsets are just list of IPs) by running 'vppctl show npol ipset' in a Kubernetes VPP container\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP",
+	}
+	mcp.AddTool(vppServer.server, toolShowNpolIpset, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "show npol ipset", "VPP NPOL IPset")
+	})
+
+	// Define vpp_show_npol_interfaces tool
+	toolShowNpolInterfaces := &mcp.Tool{
+		Name: "vpp_show_npol_interfaces",
+		Description: "Show the resulting policies configured for every interface in VPP by running 'vppctl show npol interfaces' in a Kubernetes VPP container.\n\n" +
+			"The first IPv4 address of every pod is provided to help identify which pod and interface belongs to.\n\n" +
+			"Output interpretation:\n" +
+			"- tx: contains rules that are applied on packets that LEAVE VPP on a given interface. Rules are applied top to bottom.\n" +
+			"- rx: contains rules that are applied on packets that ENTER VPP on a given interface. Rules are applied top to bottom.\n" +
+			"- profiles: are specific rules that are enforced when a matched rule action is PASS or when no policies are configured.\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP",
+	}
+	mcp.AddTool(vppServer.server, toolShowNpolInterfaces, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "show npol interfaces", "VPP NPOL Interfaces")
 	})
 
 	// Define vpp_trace tool
@@ -983,6 +1077,120 @@ func main() {
 	}
 	mcp.AddTool(vppServer.server, toolDispatch, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCaptureInput) (*mcp.CallToolResult, any, error) {
 		return vppServer.handleDispatchCapture(ctx, input)
+	})
+
+	// Define vpp_get_pods tool
+	toolGetPods := &mcp.Tool{
+		Name: "vpp_get_pods",
+		Description: "List all calico-vpp pods along with their IP addresses and the node on which they are running\n\n" +
+			"This tool runs 'kubectl get pods -n calico-vpp-dataplane -owide' to display:\n" +
+			"- Pod names\n" +
+			"- Pod status\n" +
+			"- Pod IP addresses\n" +
+			"- Node names\n" +
+			"- Age and other metadata\n\n" +
+			"No parameters required.",
+	}
+	mcp.AddTool(vppServer.server, toolGetPods, func(ctx context.Context, req *mcp.CallToolRequest, input VPPGetPodsInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleGetPods(ctx, input)
+	})
+
+	// Define vpp_clear_errors tool
+	toolClearErrors := &mcp.Tool{
+		Name: "vpp_clear_errors",
+		Description: "Reset the error counters by running 'vppctl clear errors' in a Kubernetes VPP container\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP",
+	}
+	mcp.AddTool(vppServer.server, toolClearErrors, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "clear errors", "VPP Clear Error Counters")
+	})
+
+	// Define vpp_tcp_stats tool
+	toolTcpStats := &mcp.Tool{
+		Name: "vpp_tcp_stats",
+		Description: "Display global statistics reported by TCP by running 'vppctl show tcp stats' in a Kubernetes VPP container\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP",
+	}
+	mcp.AddTool(vppServer.server, toolTcpStats, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "show tcp stats", "VPP TCP Statistics")
+	})
+
+	// Define vpp_session_stats tool
+	toolSessionStats := &mcp.Tool{
+		Name: "vpp_session_stats",
+		Description: "Display global statistics reported by the session layer by running 'vppctl show session stats' in a Kubernetes VPP container\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP",
+	}
+	mcp.AddTool(vppServer.server, toolSessionStats, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "show session stats", "VPP Session Statistics")
+	})
+
+	// Define vpp_get_logs tool
+	toolGetLogs := &mcp.Tool{
+		Name: "vpp_get_logs",
+		Description: "Display VPP logs by running 'vppctl show logging' in a Kubernetes VPP container\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP",
+	}
+	mcp.AddTool(vppServer.server, toolGetLogs, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "show logging", "VPP Logs")
+	})
+
+	// Define vpp_show_cnat_translation tool
+	toolShowCnatTranslation := &mcp.Tool{
+		Name: "vpp_show_cnat_translation",
+		Description: "Shows the active CNAT translations by running 'vppctl show cnat translation' in a Kubernetes VPP container\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP",
+	}
+	mcp.AddTool(vppServer.server, toolShowCnatTranslation, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "show cnat translation", "VPP CNAT Translation")
+	})
+
+	// Define vpp_show_cnat_session tool
+	toolShowCnatSession := &mcp.Tool{
+		Name: "vpp_show_cnat_session",
+		Description: "Lists the active CNAT sessions from the established five tuple to the five tuple rewrites by running 'vppctl cnat session' in a Kubernetes VPP container\n\n" +
+			"Output interpretation:\n" +
+			"The output shows the `incoming 5-tuple` first that is used to match packets along with the `protocol`. " +
+			"Then it displays the `5-tuple after dNAT & sNAT`, followed by the `direction` and finally the `age` in seconds. " +
+			"`direction` being input for the PRE-ROUTING sessions and output is the POST-ROUTING sessions\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP",
+	}
+	mcp.AddTool(vppServer.server, toolShowCnatSession, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "cnat session", "VPP CNAT Session")
+	})
+
+	// Define vpp_clear_run tool
+	toolClearRun := &mcp.Tool{
+		Name: "vpp_clear_run",
+		Description: "Clears live running error stats in VPP by running 'vppctl clear run' in a Kubernetes VPP container\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP",
+	}
+	mcp.AddTool(vppServer.server, toolClearRun, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "clear run", "VPP Clear Runtime Statistics")
+	})
+
+	// Define vpp_show_run tool
+	toolShowRun := &mcp.Tool{
+		Name: "vpp_show_run",
+		Description: "Shows live running error stats in VPP by running 'vppctl show run' in a Kubernetes VPP container\n\n" +
+			"Debugging workflow:\n" +
+			"Sometimes to debug an issue, you might need to run `vpp_clear_run` to erase historic stats and then wait for a few seconds in the issue state / run some tests " +
+			"so that the error stats are repopulated and then run `vpp_show_run` in order to diagnose what is going on in the system\n\n" +
+			"Output interpretation:\n" +
+			"A loaded VPP will typically have (1) a high Vectors/Call maxing out at 256 (2) a low loops/sec struggling around 10000. " +
+			"The Clocks column tells you the consumption in cycles per node on average. Beyond 1e3 is expensive.\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP",
+	}
+	mcp.AddTool(vppServer.server, toolShowRun, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "show run", "VPP Runtime Statistics")
 	})
 
 	// Create context with cancellation

@@ -12,13 +12,18 @@ This MCP server provides tools to interact with VPP instances for debugging purp
 - **Multiple Transport Modes**: 
   - **Stdio** for local client-server communication
   - **HTTP/SSE** for remote network access between machines
-- **Multiple VPP Tools**: Ten debugging tools for VPP inspection
+- **Multiple VPP Tools**: Twenty-one debugging tools for VPP inspection
+  - Pod management (list all CalicoVPP pods)
   - Version information
   - Interface statistics
   - Interface addresses
-  - Error counters
-  - Session information
+  - Error counters and error clearing
+  - Session information and statistics
+  - TCP statistics
   - NPOL rules and policies
+  - CNAT translations and sessions
+  - Runtime statistics
+  - VPP logs
   - Packet trace capture
   - PCAP capture
   - Dispatch trace capture
@@ -119,14 +124,28 @@ For remote access, replace `localhost` with the server's IP address or hostname.
 - **Parameters**: Same as `vpp_show_version`
 
 #### `vpp_show_npol_rules`
-- **Description**: Get VPP NPOL rules
+- **Description**: List rules that are referenced by policies
 - **Command**: `vppctl show npol rules`
 - **Parameters**: Same as `vpp_show_version`
 
 #### `vpp_show_npol_policies`
-- **Description**: Get VPP NPOL policies
+- **Description**: List all the policies that are referenced on interfaces
 - **Command**: `vppctl show npol policies`
 - **Parameters**: Same as `vpp_show_version`
+
+#### `vpp_show_npol_ipset`
+- **Description**: List ipsets that are referenced by rules (IPsets are just list of IPs)
+- **Command**: `vppctl show npol ipset`
+- **Parameters**: Same as `vpp_show_version`
+
+#### `vpp_show_npol_interfaces`
+- **Description**: Show the resulting policies configured for every interface in VPP. The first IPv4 address of every pod is provided to help identify which pod and interface belongs to.
+- **Command**: `vppctl show npol interfaces`
+- **Parameters**: Same as `vpp_show_version`
+- **Output interpretation**:
+  - `tx`: contains rules that are applied on packets that LEAVE VPP on a given interface. Rules are applied top to bottom.
+  - `rx`: contains rules that are applied on packets that ENTER VPP on a given interface. Rules are applied top to bottom.
+  - `profiles`: are specific rules that are enforced when a matched rule action is PASS or when no policies are configured.
 
 #### `vpp_trace`
 - **Description**: Capture VPP packet traces
@@ -160,6 +179,54 @@ For remote access, replace `localhost` with the server's IP address or hostname.
   - `node_name` (optional): Kubernetes node name (validated against cluster)
   - `count` (optional): Number of packets to capture (default: 500)
   - `interface` (optional): Interface type - phy|af_xdp|af_packet|avf|vmxnet3|virtio|rdma|dpdk|memif|vcl (default: virtio)
+
+#### `vpp_get_pods`
+- **Description**: List all CalicoVPP pods with their IPs and nodes on which they are running
+- **Command**: `kubectl get pods -n calico-vpp-dataplane -owide`
+- **Parameters**: None required
+
+#### `vpp_clear_errors`
+- **Description**: Reset the error counters
+- **Command**: `vppctl clear errors`
+- **Parameters**: Same as `vpp_show_version`
+
+#### `vpp_tcp_stats`
+- **Description**: Display global statistics reported by TCP
+- **Command**: `vppctl show tcp stats`
+- **Parameters**: Same as `vpp_show_version`
+
+#### `vpp_session_stats`
+- **Description**: Display global statistics reported by the session layer
+- **Command**: `vppctl show session stats`
+- **Parameters**: Same as `vpp_show_version`
+
+#### `vpp_get_logs`
+- **Description**: Display VPP logs
+- **Command**: `vppctl show logging`
+- **Parameters**: Same as `vpp_show_version`
+
+#### `vpp_show_cnat_translation`
+- **Description**: Shows the active CNAT translations
+- **Command**: `vppctl show cnat translation`
+- **Parameters**: Same as `vpp_show_version`
+
+#### `vpp_show_cnat_session`
+- **Description**: Lists the active CNAT sessions from the established five tuple to the five tuple rewrites
+- **Command**: `vppctl cnat session`
+- **Parameters**: Same as `vpp_show_version`
+- **Output interpretation**: The output shows the `incoming 5-tuple` first that is used to match packets along with the `protocol`. Then it displays the `5-tuple after dNAT & sNAT`, followed by the `direction` and finally the `age` in seconds. `direction` being input for the PRE-ROUTING sessions and output is the POST-ROUTING sessions
+
+#### `vpp_clear_run`
+- **Description**: Clears live running error stats in VPP
+- **Command**: `vppctl clear run`
+- **Parameters**: Same as `vpp_show_version`
+
+#### `vpp_show_run`
+- **Description**: Shows live running error stats in VPP
+- **Command**: `vppctl show run`
+- **Parameters**: Same as `vpp_show_version`
+- **Debugging workflow**: Sometimes to debug an issue, you might need to run `vpp_clear_run` to erase historic stats and then wait for a few seconds in the issue state / run some tests so that the error stats are repopulated and then run `vpp_show_run` in order to diagnose what is going on in the system
+- **Output interpretation**: A loaded VPP will typically have (1) a high Vectors/Call maxing out at 256 (2) a low loops/sec struggling around 10000. The Clocks column tells you the consumption in cycles per node on average. Beyond 1e3 is expensive.
 
 ### Kubernetes Pod Management
 
@@ -401,3 +468,4 @@ Planned features:
 - Log analysis capabilities
 - Performance monitoring tools
 - Configuration file support
+- Enhanced log filtering and parsing

@@ -19,9 +19,20 @@
 5. **vpp_show_session_verbose** - Session info
 6. **vpp_show_npol_rules** - Network policy rules
 7. **vpp_show_npol_policies** - Network policy summaries
-8. **vpp_trace** - Packet trace capture
-9. **vpp_pcap** - PCAP capture
-10. **vpp_dispatch** - Dispatch trace capture
+8. **vpp_show_npol_ipset** - IPsets referenced by rules
+9. **vpp_show_npol_interfaces** - Policies on interfaces
+10. **vpp_trace** - Packet trace capture
+11. **vpp_pcap** - PCAP capture
+12. **vpp_dispatch** - Dispatch trace capture
+13. **vpp_get_pods** - List all CalicoVPP pods
+14. **vpp_clear_errors** - Reset error counters
+15. **vpp_tcp_stats** - TCP statistics
+16. **vpp_session_stats** - Session layer statistics
+17. **vpp_get_logs** - VPP logs
+18. **vpp_show_cnat_translation** - CNAT translations
+19. **vpp_show_cnat_session** - CNAT sessions
+20. **vpp_clear_run** - Clear runtime statistics
+21. **vpp_show_run** - Runtime statistics
 
 ## Use with Claude Desktop
 

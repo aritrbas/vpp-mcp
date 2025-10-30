@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Demo test showing MCP server working end-to-end
-# This demonstrates all 10 tools
+# This demonstrates all 21 tools
 
 set -e
 
@@ -11,7 +11,7 @@ NAMESPACE="calico-vpp-dataplane"
 echo "=========================================="
 echo "VPP MCP Server Demo"
 echo "=========================================="
-echo "Testing all 10 tools against pod: $POD_NAME"
+echo "Testing all 21 tools against pod: $POD_NAME"
 echo ""
 
 # Function to test a tool
@@ -63,15 +63,26 @@ test_tool "vpp_show_errors" "VPP Error Counters"
 test_tool "vpp_show_session_verbose" "VPP Sessions (Verbose)"
 test_tool "vpp_show_npol_rules" "VPP NPOL Rules"
 test_tool "vpp_show_npol_policies" "VPP NPOL Policies"
+test_tool "vpp_show_npol_ipset" "VPP NPOL IPset"
+test_tool "vpp_show_npol_interfaces" "VPP NPOL Interfaces"
 test_tool "vpp_trace" "VPP Trace Capture"
 test_tool "vpp_pcap" "VPP PCAP Capture"
 test_tool "vpp_dispatch" "VPP Dispatch Trace"
+test_tool "vpp_get_pods" "VPP Get Pods"
+test_tool "vpp_clear_errors" "VPP Clear Errors"
+test_tool "vpp_tcp_stats" "VPP TCP Statistics"
+test_tool "vpp_session_stats" "VPP Session Statistics"
+test_tool "vpp_get_logs" "VPP Logs"
+test_tool "vpp_show_cnat_translation" "VPP CNAT Translation"
+test_tool "vpp_show_cnat_session" "VPP CNAT Session"
+test_tool "vpp_clear_run" "VPP Clear Runtime Stats"
+test_tool "vpp_show_run" "VPP Runtime Statistics"
 
 echo "=========================================="
 echo "Demo completed!"
 echo "=========================================="
 echo ""
-echo "📊 All 10 tools tested successfully"
+echo "📊 All 21 tools tested successfully"
 echo "🎯 MCP server is working correctly"
 echo ""
 echo "Next steps:"

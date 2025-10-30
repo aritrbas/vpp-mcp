@@ -23,16 +23,22 @@ if [ ! -f "./vpp-mcp-server" ]; then
     exit 1
 fi
 
-echo -e "${YELLOW}Step 1: Testing MCP server startup...${NC}"
+echo -e "${YELLOW}Step 1: Testing MCP server initialization...${NC}"
 echo ""
 
-# Test 1: Check if server starts
-timeout 2s ./vpp-mcp-server > /tmp/vpp-mcp-test.log 2>&1 || true
-if grep -q "MCP server connected successfully" /tmp/vpp-mcp-test.log; then
-    echo -e "${GREEN}✓ Server starts successfully${NC}"
+# Test 1: Check if server initializes properly
+INIT_RESULT=$(
+    (
+        echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}'
+        sleep 0.5
+    ) | timeout 3s ./vpp-mcp-server 2>&1
+)
+
+if echo "$INIT_RESULT" | grep -q '"result"' && echo "$INIT_RESULT" | grep -q '"protocolVersion"'; then
+    echo -e "${GREEN}✓ Server initializes successfully${NC}"
 else
-    echo -e "${RED}✗ Server failed to start${NC}"
-    cat /tmp/vpp-mcp-test.log
+    echo -e "${RED}✗ Server failed to initialize${NC}"
+    echo "$INIT_RESULT"
     exit 1
 fi
 
@@ -64,9 +70,20 @@ echo "  4. vpp_show_errors"
 echo "  5. vpp_show_session_verbose"
 echo "  6. vpp_show_npol_rules"
 echo "  7. vpp_show_npol_policies"
-echo "  8. vpp_trace"
-echo "  9. vpp_pcap"
-echo " 10. vpp_dispatch"
+echo "  8. vpp_show_npol_ipset"
+echo "  9. vpp_show_npol_interfaces"
+echo " 10. vpp_trace"
+echo " 11. vpp_pcap"
+echo " 12. vpp_dispatch"
+echo " 13. vpp_get_pods"
+echo " 14. vpp_clear_errors"
+echo " 15. vpp_tcp_stats"
+echo " 16. vpp_session_stats"
+echo " 17. vpp_get_logs"
+echo " 18. vpp_show_cnat_translation"
+echo " 19. vpp_show_cnat_session"
+echo " 20. vpp_clear_run"
+echo " 21. vpp_show_run"
 
 echo ""
 echo -e "${YELLOW}Step 3: Prerequisites check...${NC}"

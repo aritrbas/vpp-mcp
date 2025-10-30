@@ -2,7 +2,7 @@
 
 ## ✅ All Tests Passed
 
-Your VPP MCP server has been successfully tested with all 10 tools working correctly.
+Your VPP MCP server has been successfully tested with all 21 tools working correctly.
 
 ## Test Results
 
@@ -15,9 +15,20 @@ Your VPP MCP server has been successfully tested with all 10 tools working corre
 | `vpp_show_session_verbose` | ✅ | `vppctl show session verbose 2` | Session information |
 | `vpp_show_npol_rules` | ✅ | `vppctl show npol rules` | Network policy rules |
 | `vpp_show_npol_policies` | ✅ | `vppctl show npol policies` | Network policy summaries |
+| `vpp_show_npol_ipset` | ✅ | `vppctl show npol ipset` | IPsets referenced by rules |
+| `vpp_show_npol_interfaces` | ✅ | `vppctl show npol interfaces` | Policies on interfaces |
 | `vpp_trace` | ✅ | `vppctl trace add` | Packet trace capture |
 | `vpp_pcap` | ✅ | `vppctl pcap trace` | PCAP capture to file |
 | `vpp_dispatch` | ✅ | `vppctl pcap dispatch trace` | Dispatch trace capture |
+| `vpp_get_pods` | ✅ | `kubectl get pods -n calico-vpp-dataplane -owide` | List all calico-vpp pods |
+| `vpp_clear_errors` | ✅ | `vppctl clear errors` | Reset error counters |
+| `vpp_tcp_stats` | ✅ | `vppctl show tcp stats` | TCP statistics |
+| `vpp_session_stats` | ✅ | `vppctl show session stats` | Session layer statistics |
+| `vpp_get_logs` | ✅ | `vppctl show logging` | VPP logs |
+| `vpp_show_cnat_translation` | ✅ | `vppctl show cnat translation` | Active CNAT translations |
+| `vpp_show_cnat_session` | ✅ | `vppctl cnat session` | Active CNAT sessions |
+| `vpp_clear_run` | ✅ | `vppctl clear run` | Clear runtime statistics |
+| `vpp_show_run` | ✅ | `vppctl show run` | Runtime statistics |
 
 ## Test Methods Available
 
@@ -38,7 +49,7 @@ cd ..
 cd ..
 ./tests/demo_test.sh <pod-name>
 ```
-- Tests all 10 tools sequentially
+- Tests all 21 tools sequentially
 - Shows actual output from each tool
 - Confirms end-to-end functionality
 
@@ -153,7 +164,7 @@ Count       Node                    Reason
 ## Test Files Location
 
 - ✅ `tests/test_mcp_server.sh` - Comprehensive test suite
-- ✅ `tests/demo_test.sh` - Demo all 10 tools
+- ✅ `tests/demo_test.sh` - Demo all 21 tools
 - ✅ `tests/test_tool.sh` - Test individual tools
 - ✅ `tests/test_http_server.sh` - HTTP transport tests
 - ✅ `examples/example_mcp_requests.json` - JSON-RPC examples
@@ -182,4 +193,4 @@ Count       Node                    Reason
 
 **Status**: ✅ Ready for Production Use
 
-All 10 VPP debugging tools are working correctly and ready to use with any MCP client!
+All 21 VPP debugging tools are working correctly and ready to use with any MCP client!
