@@ -33,6 +33,12 @@
 19. **vpp_show_cnat_session** - CNAT sessions
 20. **vpp_clear_run** - Clear runtime statistics
 21. **vpp_show_run** - Runtime statistics
+22. **vpp_show_ip_table** - IPv4 VRF tables
+23. **vpp_show_ip6_table** - IPv6 VRF tables
+24. **vpp_show_ip_fib** - IPv4 FIB routes (requires fib_index)
+25. **vpp_show_ip6_fib** - IPv6 FIB routes (requires fib_index)
+26. **vpp_show_ip_fib_prefix** - IPv4 FIB prefix info (requires fib_index & prefix)
+27. **vpp_show_ip6_fib_prefix** - IPv6 FIB prefix info (requires fib_index & prefix)
 
 ## Use with Claude Desktop
 

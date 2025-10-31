@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Demo test showing MCP server working end-to-end
-# This demonstrates all 21 tools
+# This demonstrates 23 tools (27 total, 4 require additional parameters)
 
 set -e
 
@@ -11,7 +11,9 @@ NAMESPACE="calico-vpp-dataplane"
 echo "=========================================="
 echo "VPP MCP Server Demo"
 echo "=========================================="
-echo "Testing all 21 tools against pod: $POD_NAME"
+echo "Testing 23 tools against pod: $POD_NAME"
+echo "Note: 4 tools (vpp_show_ip_fib, vpp_show_ip6_fib, vpp_show_ip_fib_prefix, vpp_show_ip6_fib_prefix)"
+echo "require fib_index and/or prefix parameters and are not tested automatically."
 echo ""
 
 # Function to test a tool
@@ -77,12 +79,17 @@ test_tool "vpp_show_cnat_translation" "VPP CNAT Translation"
 test_tool "vpp_show_cnat_session" "VPP CNAT Session"
 test_tool "vpp_clear_run" "VPP Clear Runtime Stats"
 test_tool "vpp_show_run" "VPP Runtime Statistics"
+test_tool "vpp_show_ip_table" "VPP IPv4 VRF Tables"
+test_tool "vpp_show_ip6_table" "VPP IPv6 VRF Tables"
+# Note: vpp_show_ip_fib, vpp_show_ip6_fib, vpp_show_ip_fib_prefix, vpp_show_ip6_fib_prefix
+# require additional parameters (fib_index and/or prefix) and are not tested here
 
 echo "=========================================="
 echo "Demo completed!"
 echo "=========================================="
 echo ""
-echo "📊 All 21 tools tested successfully"
+echo "📊 23 of 27 tools tested successfully"
+echo "   (4 tools require fib_index/prefix parameters)"
 echo "🎯 MCP server is working correctly"
 echo ""
 echo "Next steps:"

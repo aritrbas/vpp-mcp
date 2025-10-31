@@ -12,7 +12,7 @@ This MCP server provides tools to interact with VPP instances for debugging purp
 - **Multiple Transport Modes**: 
   - **Stdio** for local client-server communication
   - **HTTP/SSE** for remote network access between machines
-- **Multiple VPP Tools**: Twenty-one debugging tools for VPP inspection
+- **Multiple VPP Tools**: Twenty-seven debugging tools for VPP inspection
   - Pod management (list all CalicoVPP pods)
   - Version information
   - Interface statistics
@@ -23,6 +23,7 @@ This MCP server provides tools to interact with VPP instances for debugging purp
   - NPOL rules and policies
   - CNAT translations and sessions
   - Runtime statistics
+  - IP routing tables and FIBs
   - VPP logs
   - Packet trace capture
   - PCAP capture
@@ -227,6 +228,54 @@ For remote access, replace `localhost` with the server's IP address or hostname.
 - **Parameters**: Same as `vpp_show_version`
 - **Debugging workflow**: Sometimes to debug an issue, you might need to run `vpp_clear_run` to erase historic stats and then wait for a few seconds in the issue state / run some tests so that the error stats are repopulated and then run `vpp_show_run` in order to diagnose what is going on in the system
 - **Output interpretation**: A loaded VPP will typically have (1) a high Vectors/Call maxing out at 256 (2) a low loops/sec struggling around 10000. The Clocks column tells you the consumption in cycles per node on average. Beyond 1e3 is expensive.
+
+#### `vpp_show_ip_table`
+- **Description**: Prints all available IPv4 VRFs
+- **Command**: `vppctl show ip table`
+- **Parameters**: Same as `vpp_show_version`
+
+#### `vpp_show_ip6_table`
+- **Description**: Prints all available IPv6 VRFs
+- **Command**: `vppctl show ip6 table`
+- **Parameters**: Same as `vpp_show_version`
+
+#### `vpp_show_ip_fib`
+- **Description**: Prints all routes in a given pod IPv4 VRF
+- **Command**: `vppctl show ip fib index <idx>`
+- **Parameters**:
+  - `pod_name` (required): Name of the Kubernetes pod running VPP
+  - `namespace` (optional): Kubernetes namespace (default: `calico-vpp-dataplane`)
+  - `container_name` (optional): Container name within the pod (default: `vpp`)
+  - `fib_index` (required): The FIB table index
+
+#### `vpp_show_ip6_fib`
+- **Description**: Prints all routes in a given pod IPv6 VRF
+- **Command**: `vppctl show ip6 fib index <idx>`
+- **Parameters**:
+  - `pod_name` (required): Name of the Kubernetes pod running VPP
+  - `namespace` (optional): Kubernetes namespace (default: `calico-vpp-dataplane`)
+  - `container_name` (optional): Container name within the pod (default: `vpp`)
+  - `fib_index` (required): The FIB table index
+
+#### `vpp_show_ip_fib_prefix`
+- **Description**: Prints information about a specific prefix in a given pod IPv4 VRF
+- **Command**: `vppctl show ip fib index <idx> <prefix>`
+- **Parameters**:
+  - `pod_name` (required): Name of the Kubernetes pod running VPP
+  - `namespace` (optional): Kubernetes namespace (default: `calico-vpp-dataplane`)
+  - `container_name` (optional): Container name within the pod (default: `vpp`)
+  - `fib_index` (required): The FIB table index
+  - `prefix` (required): The IP prefix to query (e.g., 10.0.0.0/24)
+
+#### `vpp_show_ip6_fib_prefix`
+- **Description**: Prints information about a specific prefix in a given pod IPv6 VRF
+- **Command**: `vppctl show ip6 fib index <idx> <prefix>`
+- **Parameters**:
+  - `pod_name` (required): Name of the Kubernetes pod running VPP
+  - `namespace` (optional): Kubernetes namespace (default: `calico-vpp-dataplane`)
+  - `container_name` (optional): Container name within the pod (default: `vpp`)
+  - `fib_index` (required): The FIB table index
+  - `prefix` (required): The IPv6 prefix to query (e.g., 2001:db8::/32)
 
 ### Kubernetes Pod Management
 

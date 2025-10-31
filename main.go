@@ -328,6 +328,32 @@ type VPPCaptureInput struct {
 	Interface string `json:"interface,omitempty"`
 }
 
+// VPPFIBInput represents the input for VPP FIB tools requiring fib_index
+type VPPFIBInput struct {
+	// PodName specifies the name of the Kubernetes pod running VPP
+	PodName string `json:"pod_name"`
+	// Namespace specifies the Kubernetes namespace where the pod is running (default: calico-vpp-dataplane)
+	Namespace string `json:"namespace,omitempty"`
+	// ContainerName specifies the container name within the VPP pod (default: vpp)
+	ContainerName string `json:"container_name,omitempty"`
+	// FibIndex specifies the FIB table index
+	FibIndex string `json:"fib_index"`
+}
+
+// VPPFIBPrefixInput represents the input for VPP FIB tools requiring fib_index and prefix
+type VPPFIBPrefixInput struct {
+	// PodName specifies the name of the Kubernetes pod running VPP
+	PodName string `json:"pod_name"`
+	// Namespace specifies the Kubernetes namespace where the pod is running (default: calico-vpp-dataplane)
+	Namespace string `json:"namespace,omitempty"`
+	// ContainerName specifies the container name within the VPP pod (default: vpp)
+	ContainerName string `json:"container_name,omitempty"`
+	// FibIndex specifies the FIB table index
+	FibIndex string `json:"fib_index"`
+	// Prefix specifies the IP prefix to query
+	Prefix string `json:"prefix"`
+}
+
 // VPPMCPServer implements the MCP server for VPP debugging
 type VPPMCPServer struct {
 	server *mcp.Server
@@ -461,6 +487,156 @@ func (s *VPPMCPServer) handleVPPCommand(ctx context.Context, input VPPCommandInp
 			},
 		}
 		log.Printf("Error executing VPP command on pod %s: %s", pod, errorMsg)
+		return errorResponse, nil, nil
+	}
+}
+
+// handleVPPFIBCommand is a handler for VPP FIB commands that require fib_index
+func (s *VPPMCPServer) handleVPPFIBCommand(ctx context.Context, input VPPFIBInput, commandTemplate, commandDescription string) (*mcp.CallToolResult, any, error) {
+	inputJSON, _ := json.Marshal(input)
+	log.Printf("Received %s request with input: %s", commandDescription, string(inputJSON))
+
+	if input.PodName == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "Error: PodName is required. Please specify the Kubernetes pod name running VPP.",
+				},
+			},
+		}, nil, fmt.Errorf("PodName is required")
+	}
+
+	if input.FibIndex == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "Error: fib_index is required. Please specify the FIB table index.",
+				},
+			},
+		}, nil, fmt.Errorf("fib_index is required")
+	}
+
+	// Build the command with fib_index
+	command := fmt.Sprintf(commandTemplate, input.FibIndex)
+	log.Printf("Executing vppctl %s command on pod: %s", command, input.PodName)
+
+	result, err := ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, command)
+
+	if err != nil {
+		log.Printf("Error executing VPP command: %v", err)
+	}
+
+	if success, ok := result["success"].(bool); ok && success {
+		output := result["output"].(string)
+		cmd := result["command"].(string)
+		pod := result["pod"].(string)
+		namespace := result["namespace"].(string)
+
+		response := &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("%s:\n\n%s\n\nCommand executed: vppctl %s\nPod: %s\nNamespace: %s",
+						commandDescription, output, cmd, pod, namespace),
+				},
+			},
+		}
+
+		log.Println("Successfully executed VPP FIB command, returning result")
+		return response, nil, nil
+	} else {
+		errorMsg := result["error"].(string)
+		cmd := result["command"].(string)
+		pod := result["pod"].(string)
+
+		errorResponse := &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error executing VPP command on pod %s: %s\nCommand attempted: vppctl %s",
+						pod, errorMsg, cmd),
+				},
+			},
+		}
+		log.Printf("Error executing VPP FIB command on pod %s: %s", pod, errorMsg)
+		return errorResponse, nil, nil
+	}
+}
+
+// handleVPPFIBPrefixCommand is a handler for VPP FIB commands that require fib_index and prefix
+func (s *VPPMCPServer) handleVPPFIBPrefixCommand(ctx context.Context, input VPPFIBPrefixInput, commandTemplate, commandDescription string) (*mcp.CallToolResult, any, error) {
+	inputJSON, _ := json.Marshal(input)
+	log.Printf("Received %s request with input: %s", commandDescription, string(inputJSON))
+
+	if input.PodName == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "Error: PodName is required. Please specify the Kubernetes pod name running VPP.",
+				},
+			},
+		}, nil, fmt.Errorf("PodName is required")
+	}
+
+	if input.FibIndex == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "Error: fib_index is required. Please specify the FIB table index.",
+				},
+			},
+		}, nil, fmt.Errorf("fib_index is required")
+	}
+
+	if input.Prefix == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "Error: prefix is required. Please specify the IP prefix.",
+				},
+			},
+		}, nil, fmt.Errorf("prefix is required")
+	}
+
+	// Build the command with fib_index and prefix
+	command := fmt.Sprintf(commandTemplate, input.FibIndex, input.Prefix)
+	log.Printf("Executing vppctl %s command on pod: %s", command, input.PodName)
+
+	result, err := ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, command)
+
+	if err != nil {
+		log.Printf("Error executing VPP command: %v", err)
+	}
+
+	if success, ok := result["success"].(bool); ok && success {
+		output := result["output"].(string)
+		cmd := result["command"].(string)
+		pod := result["pod"].(string)
+		namespace := result["namespace"].(string)
+
+		response := &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("%s:\n\n%s\n\nCommand executed: vppctl %s\nPod: %s\nNamespace: %s",
+						commandDescription, output, cmd, pod, namespace),
+				},
+			},
+		}
+
+		log.Println("Successfully executed VPP FIB prefix command, returning result")
+		return response, nil, nil
+	} else {
+		errorMsg := result["error"].(string)
+		cmd := result["command"].(string)
+		pod := result["pod"].(string)
+
+		errorResponse := &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error executing VPP command on pod %s: %s\nCommand attempted: vppctl %s",
+						pod, errorMsg, cmd),
+				},
+			},
+		}
+		log.Printf("Error executing VPP FIB prefix command on pod %s: %s", pod, errorMsg)
 		return errorResponse, nil, nil
 	}
 }
@@ -1191,6 +1367,78 @@ func main() {
 	}
 	mcp.AddTool(vppServer.server, toolShowRun, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
 		return vppServer.handleVPPCommand(ctx, input, "show run", "VPP Runtime Statistics")
+	})
+
+	// Define vpp_show_ip_table tool
+	toolShowIpTable := &mcp.Tool{
+		Name: "vpp_show_ip_table",
+		Description: "Prints all available IPv4 VRFs by running 'vppctl show ip table' in a Kubernetes VPP container\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP",
+	}
+	mcp.AddTool(vppServer.server, toolShowIpTable, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "show ip table", "VPP IPv4 VRF Tables")
+	})
+
+	// Define vpp_show_ip6_table tool
+	toolShowIp6Table := &mcp.Tool{
+		Name: "vpp_show_ip6_table",
+		Description: "Prints all available IPv6 VRFs by running 'vppctl show ip6 table' in a Kubernetes VPP container\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP",
+	}
+	mcp.AddTool(vppServer.server, toolShowIp6Table, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "show ip6 table", "VPP IPv6 VRF Tables")
+	})
+
+	// Define vpp_show_ip_fib tool
+	toolShowIpFib := &mcp.Tool{
+		Name: "vpp_show_ip_fib",
+		Description: "Prints all routes in a given pod IPv4 VRF by running 'vppctl show ip fib index <idx>' in a Kubernetes VPP container\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP\n" +
+			"- fib_index: The FIB table index",
+	}
+	mcp.AddTool(vppServer.server, toolShowIpFib, func(ctx context.Context, req *mcp.CallToolRequest, input VPPFIBInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPFIBCommand(ctx, input, "show ip fib index %s", "VPP IPv4 FIB Routes")
+	})
+
+	// Define vpp_show_ip6_fib tool
+	toolShowIp6Fib := &mcp.Tool{
+		Name: "vpp_show_ip6_fib",
+		Description: "Prints all routes in a given pod IPv6 VRF by running 'vppctl show ip6 fib index <idx>' in a Kubernetes VPP container\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP\n" +
+			"- fib_index: The FIB table index",
+	}
+	mcp.AddTool(vppServer.server, toolShowIp6Fib, func(ctx context.Context, req *mcp.CallToolRequest, input VPPFIBInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPFIBCommand(ctx, input, "show ip6 fib index %s", "VPP IPv6 FIB Routes")
+	})
+
+	// Define vpp_show_ip_fib_prefix tool
+	toolShowIpFibPrefix := &mcp.Tool{
+		Name: "vpp_show_ip_fib_prefix",
+		Description: "Prints information about a specific prefix in a given pod IPv4 VRF by running 'vppctl show ip fib index <idx> <prefix>' in a Kubernetes VPP container\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP\n" +
+			"- fib_index: The FIB table index\n" +
+			"- prefix: The IP prefix to query (e.g., 10.0.0.0/24)",
+	}
+	mcp.AddTool(vppServer.server, toolShowIpFibPrefix, func(ctx context.Context, req *mcp.CallToolRequest, input VPPFIBPrefixInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPFIBPrefixCommand(ctx, input, "show ip fib index %s %s", "VPP IPv4 FIB Prefix Information")
+	})
+
+	// Define vpp_show_ip6_fib_prefix tool
+	toolShowIp6FibPrefix := &mcp.Tool{
+		Name: "vpp_show_ip6_fib_prefix",
+		Description: "Prints information about a specific prefix in a given pod IPv6 VRF by running 'vppctl show ip6 fib index <idx> <prefix>' in a Kubernetes VPP container\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP\n" +
+			"- fib_index: The FIB table index\n" +
+			"- prefix: The IPv6 prefix to query (e.g., 2001:db8::/32)",
+	}
+	mcp.AddTool(vppServer.server, toolShowIp6FibPrefix, func(ctx context.Context, req *mcp.CallToolRequest, input VPPFIBPrefixInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPFIBPrefixCommand(ctx, input, "show ip6 fib index %s %s", "VPP IPv6 FIB Prefix Information")
 	})
 
 	// Create context with cancellation

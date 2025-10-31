@@ -300,6 +300,102 @@
     }
   },
   
+  "21_call_show_ip_table": {
+    "description": "Call vpp_show_ip_table tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 21,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_ip_table",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "22_call_show_ip6_table": {
+    "description": "Call vpp_show_ip6_table tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_ip6_table",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  
+  "23_call_show_ip_fib": {
+    "description": "Call vpp_show_ip_fib tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_ip_fib",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME",
+          "fib_index": "0"
+        }
+      }
+    }
+  },
+  
+  "24_call_show_ip6_fib": {
+    "description": "Call vpp_show_ip6_fib tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_ip6_fib",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME",
+          "fib_index": "0"
+        }
+      }
+    }
+  },
+  
+  "25_call_show_ip_fib_prefix": {
+    "description": "Call vpp_show_ip_fib_prefix tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_ip_fib_prefix",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME",
+          "fib_index": "0",
+          "prefix": "10.0.0.0/24"
+        }
+      }
+    }
+  },
+  
+  "26_call_show_ip6_fib_prefix": {
+    "description": "Call vpp_show_ip6_fib_prefix tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 26,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_ip6_fib_prefix",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME",
+          "fib_index": "0",
+          "prefix": "2001:db8::/32"
+        }
+      }
+    }
+  },
+  
   "usage_example": {
     "description": "How to use these requests",
     "steps": [
