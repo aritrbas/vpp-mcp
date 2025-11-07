@@ -10,8 +10,9 @@
 ../tests/test_tool.sh vpp_show_int calico-vpp-node-hnk97
 ```
 
-## Available Tools
+## Available Tools (34 Total)
 
+### VPP Tools (27)
 1. **vpp_show_version** - VPP version info
 2. **vpp_show_int** - Interface statistics  
 3. **vpp_show_int_addr** - Interface addresses
@@ -39,6 +40,17 @@
 25. **vpp_show_ip6_fib** - IPv6 FIB routes (requires fib_index)
 26. **vpp_show_ip_fib_prefix** - IPv4 FIB prefix info (requires fib_index & prefix)
 27. **vpp_show_ip6_fib_prefix** - IPv6 FIB prefix info (requires fib_index & prefix)
+
+### BGP Tools (7)
+28. **bgp_show_neighbors** - BGP peers
+29. **bgp_show_global_info** - BGP global information
+30. **bgp_show_global_rib4** - BGP IPv4 RIB
+31. **bgp_show_global_rib6** - BGP IPv6 RIB
+32. **bgp_show_ip** - BGP RIB entry for IP (requires IP address)
+33. **bgp_show_prefix** - BGP RIB entry for prefix (requires prefix)
+34. **bgp_show_neighbor** - BGP neighbor details (requires neighbor IP)
+
+**Note**: All tools use namespace `calico-vpp-dataplane` and container `vpp` by default.
 
 ## Use with Claude Desktop
 

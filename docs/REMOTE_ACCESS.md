@@ -201,25 +201,32 @@ Run both machines on a VPN for encrypted communication:
 
 ## Example Usage
 
-Once connected, your agent on Machine Y can use all VPP debugging tools:
+Once connected, your agent on Machine Y can use all 34 VPP debugging tools:
 
 ```javascript
 // Example: Get VPP version from remote pod
 {
   "tool": "vpp_show_version",
   "parameters": {
-    "pod_name": "calico-vpp-node-abcd",
-    "namespace": "calico-vpp-dataplane"
+    "pod_name": "calico-vpp-node-abcd"
   }
 }
 
-// Example: Capture packet trace
+// Example: Capture packet trace (runs for 30 seconds)
 {
   "tool": "vpp_trace",
   "parameters": {
     "pod_name": "calico-vpp-node-abcd",
     "count": 100,
     "interface": "virtio"
+  }
+}
+
+// Example: BGP neighbor information
+{
+  "tool": "bgp_show_neighbors",
+  "parameters": {
+    "pod_name": "calico-vpp-node-abcd"
   }
 }
 ```

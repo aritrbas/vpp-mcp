@@ -18,19 +18,15 @@ import (
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/clientcmd"
 )
 
 // ExecutePodVPPCommand runs a VPP command directly on a specified Kubernetes pod
-func ExecutePodVPPCommand(ctx context.Context, podName, namespace, containerName, command string) (map[string]interface{}, error) {
-	// Apply default values if not provided
-	if namespace == "" {
-		namespace = "calico-vpp-dataplane" // Default namespace
-	}
-
-	if containerName == "" {
-		containerName = "vpp" // Default container name
-	}
+func ExecutePodVPPCommand(ctx context.Context, podName, command string) (map[string]interface{}, error) {
+	// Use hardcoded defaults
+	namespace := "calico-vpp-dataplane"
+	containerName := "vpp"
 
 	// Build kubectl exec command
 	cmdArgs := []string{
@@ -72,7 +68,7 @@ func ExecutePodVPPCommand(ctx context.Context, podName, namespace, containerName
 		log.Printf("Command stderr: %s", errOutput)
 	}
 
-	var err error = execErr
+	err := execErr
 
 	if err != nil {
 		errorMsg := ""
@@ -105,6 +101,11 @@ type KubeClient struct {
 	timeout   time.Duration
 }
 
+// CoreV1 returns the CoreV1 client
+func (k *KubeClient) CoreV1() corev1client.CoreV1Interface {
+	return k.clientset.CoreV1()
+}
+
 // newKubeClient creates a new Kubernetes client
 func newKubeClient() (*KubeClient, error) {
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
@@ -122,54 +123,6 @@ func newKubeClient() (*KubeClient, error) {
 	}
 
 	return &KubeClient{clientset: clientset, timeout: kubeClientTimeout}, nil
-}
-
-// getAvailableNodeNames retrieves all node names from the cluster
-func (k *KubeClient) getAvailableNodeNames() ([]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), k.timeout)
-	defer cancel()
-
-	nodes, err := k.clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	var nodeNames []string
-	for _, node := range nodes.Items {
-		nodeNames = append(nodeNames, node.Name)
-	}
-
-	return nodeNames, nil
-}
-
-// validateNodeName validates that the provided node name exists in the cluster
-func validateNodeName(k *KubeClient, nodeName string) (string, error) {
-	nodeNames, err := k.getAvailableNodeNames()
-	if err != nil {
-		return "", err
-	}
-
-	if len(nodeNames) == 0 {
-		return "", fmt.Errorf("no nodes found. Is cluster running?")
-	}
-
-	if nodeName == "" && len(nodeNames) == 1 {
-		return nodeNames[0], nil
-	}
-
-	for _, n := range nodeNames {
-		if n == nodeName {
-			return nodeName, nil
-		}
-	}
-
-	var nodeList strings.Builder
-	nodeList.WriteString("\nAvailable nodes:")
-	for i, n := range nodeNames {
-		nodeList.WriteString(fmt.Sprintf("\n%d. %s", i+1, n))
-	}
-
-	return "", fmt.Errorf("node '%s' not found.%s", nodeName, nodeList.String())
 }
 
 // getVppDriverFromConfigMap retrieves the vppDriver from the calico-vpp-config ConfigMap
@@ -301,28 +254,13 @@ func parseVppInterfaces(output string) []string {
 type VPPCommandInput struct {
 	// PodName specifies the name of the Kubernetes pod running VPP
 	PodName string `json:"pod_name"`
-	// Namespace specifies the Kubernetes namespace where the pod is running (default: calico-vpp-dataplane)
-	Namespace string `json:"namespace,omitempty"`
-	// ContainerName specifies the container name within the VPP pod (default: vpp)
-	ContainerName string `json:"container_name,omitempty"`
-}
-
-// VPPGetPodsInput represents the input for getting calico-vpp pods
-type VPPGetPodsInput struct {
-	// No arguments needed for this tool
 }
 
 // VPPCaptureInput represents the input for VPP packet capture tools (trace, pcap, dispatch)
 type VPPCaptureInput struct {
 	// PodName specifies the name of the Kubernetes pod running VPP
 	PodName string `json:"pod_name"`
-	// Namespace specifies the Kubernetes namespace where the pod is running (default: calico-vpp-dataplane)
-	Namespace string `json:"namespace,omitempty"`
-	// ContainerName specifies the container name within the VPP pod (default: vpp)
-	ContainerName string `json:"container_name,omitempty"`
-	// NodeName specifies the Kubernetes node name (optional, validated against cluster)
-	NodeName string `json:"node_name,omitempty"`
-	// Count specifies the number of packets to capture (default: run for 15 seconds)
+	// Count specifies the number of packets to capture (default: run for 30 seconds)
 	Count int `json:"count,omitempty"`
 	// Interface specifies the interface type or name to capture from
 	Interface string `json:"interface,omitempty"`
@@ -332,10 +270,6 @@ type VPPCaptureInput struct {
 type VPPFIBInput struct {
 	// PodName specifies the name of the Kubernetes pod running VPP
 	PodName string `json:"pod_name"`
-	// Namespace specifies the Kubernetes namespace where the pod is running (default: calico-vpp-dataplane)
-	Namespace string `json:"namespace,omitempty"`
-	// ContainerName specifies the container name within the VPP pod (default: vpp)
-	ContainerName string `json:"container_name,omitempty"`
 	// FibIndex specifies the FIB table index
 	FibIndex string `json:"fib_index"`
 }
@@ -344,15 +278,28 @@ type VPPFIBInput struct {
 type VPPFIBPrefixInput struct {
 	// PodName specifies the name of the Kubernetes pod running VPP
 	PodName string `json:"pod_name"`
-	// Namespace specifies the Kubernetes namespace where the pod is running (default: calico-vpp-dataplane)
-	Namespace string `json:"namespace,omitempty"`
-	// ContainerName specifies the container name within the VPP pod (default: vpp)
-	ContainerName string `json:"container_name,omitempty"`
 	// FibIndex specifies the FIB table index
 	FibIndex string `json:"fib_index"`
 	// Prefix specifies the IP prefix to query
 	Prefix string `json:"prefix"`
 }
+
+// BGPCommandInput represents the input for BGP command tools
+type BGPCommandInput struct {
+	// PodName specifies the name of the Kubernetes pod running the agent container with gobgp
+	PodName string `json:"pod_name"`
+}
+
+// BGPParameterCommandInput represents the input for BGP command tools that require a parameter (IP, prefix, or neighbor IP)
+type BGPParameterCommandInput struct {
+	// PodName specifies the name of the Kubernetes pod running the agent container with gobgp
+	PodName string `json:"pod_name"`
+	// Parameter specifies the parameter value (IP address, prefix, or neighbor IP)
+	Parameter string `json:"parameter"`
+}
+
+// EmptyInput represents tools that don't require any input parameters
+type EmptyInput struct{}
 
 // VPPMCPServer implements the MCP server for VPP debugging
 type VPPMCPServer struct {
@@ -364,8 +311,269 @@ func NewVPPMCPServer() *VPPMCPServer {
 	return &VPPMCPServer{}
 }
 
+// ExecutePodGoBGPCommand runs a gobgp command directly on a specified Kubernetes pod
+func ExecutePodGoBGPCommand(ctx context.Context, podName, command string) (map[string]interface{}, error) {
+	if podName == "" {
+		return nil, fmt.Errorf("pod name is required")
+	}
+
+	namespace := "calico-vpp-dataplane"
+
+	// Get the node name for the pod
+	nodeName := ""
+	k8sClient, err := newKubeClient()
+	if err == nil {
+		pod, err := k8sClient.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+		if err == nil {
+			nodeName = pod.Spec.NodeName
+		}
+	}
+
+	// Build kubectl command to execute in the agent container
+	cmdArgs := []string{
+		"exec",
+		"-n", namespace,
+		"-c", "agent", // Use the agent container
+		podName,
+		"--",
+		"gobgp",
+	}
+
+	// Add the specific gobgp command arguments
+	cmdArgs = append(cmdArgs, strings.Fields(command)...)
+
+	// Execute the command with a timeout
+	log.Printf("Executing command: kubectl %s", strings.Join(cmdArgs, " "))
+
+	// Set a timeout for the command
+	cmdCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(cmdCtx, "kubectl", cmdArgs...)
+
+	// Capture stdout and stderr separately
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	log.Printf("Starting command execution...")
+	execErr := cmd.Run()
+	log.Printf("Command completed with status: %v", execErr == nil)
+
+	// Get the output
+	output := stdout.Bytes()
+	errOutput := stderr.String()
+
+	if errOutput != "" {
+		log.Printf("Command stderr: %s", errOutput)
+	}
+
+	if execErr != nil {
+		errorMsg := ""
+		if exitErr, ok := execErr.(*exec.ExitError); ok {
+			errorMsg = string(exitErr.Stderr)
+		}
+		return map[string]interface{}{
+			"success": false,
+			"error":   fmt.Sprintf("%v - %s", execErr, errorMsg),
+			"node":    nodeName,
+			"pod":     podName,
+			"command": command,
+		}, execErr
+	}
+	return map[string]interface{}{
+		"success": true,
+		"output":  string(output),
+		"command": command,
+		"node":    nodeName,
+		"pod":     podName,
+	}, nil
+}
+
+// HandleGoBGPCommand is a generic handler for gobgp commands
+func (s *VPPMCPServer) HandleGoBGPCommand(ctx context.Context, input BGPCommandInput, command, commandDescription string) (*mcp.CallToolResult, any, error) {
+	// Log the request details
+	log.Printf("Received %s request for pod: %s", commandDescription, input.PodName)
+	log.Printf("Executing gobgp %s command on pod: %s", command, input.PodName)
+
+	if input.PodName == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "Error: Pod name is required. Please specify the Kubernetes pod name.",
+				},
+			},
+		}, nil, fmt.Errorf("pod name is required")
+	}
+
+	// Initialize Kubernetes client for validation
+	k8sClient, err := newKubeClient()
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error: Failed to create Kubernetes client: %v", err),
+				},
+			},
+		}, nil, err
+	}
+
+	namespace := "calico-vpp-dataplane"
+
+	// Validate pod exists
+	_, err = k8sClient.CoreV1().Pods(namespace).Get(ctx, input.PodName, metav1.GetOptions{})
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error validating pod: %v", err),
+				},
+			},
+		}, nil, err
+	}
+
+	// Execute the gobgp command on the Kubernetes pod
+	result, err := ExecutePodGoBGPCommand(ctx, input.PodName, command)
+
+	if err != nil {
+		log.Printf("Error executing gobgp command: %v", err)
+	}
+
+	if success, ok := result["success"].(bool); ok && success {
+		output := result["output"].(string)
+		cmd := result["command"].(string)
+		node := result["node"].(string)
+		pod := result["pod"].(string)
+
+		response := &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("%s:\n\n%s\n\nCommand executed: gobgp %s\nNode: %s\nPod: %s (container: agent)",
+						commandDescription, output, cmd, node, pod),
+				},
+			},
+		}
+
+		log.Println("Successfully executed gobgp command, returning result")
+		return response, nil, nil
+	} else {
+		errorMsg := result["error"].(string)
+		cmd := result["command"].(string)
+		node := result["node"].(string)
+		pod, _ := result["pod"].(string)
+
+		errorResponse := &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error executing gobgp command on node %s (pod: %s): %s\nCommand attempted: gobgp %s",
+						node, pod, errorMsg, cmd),
+				},
+			},
+		}
+		log.Printf("Error executing gobgp command on node %s (pod: %s): %s", node, pod, errorMsg)
+		return errorResponse, nil, nil
+	}
+}
+
+// HandleGoBGPParameterCommand is a consolidated handler for gobgp commands that require a parameter (IP, prefix, or neighbor)
+func (s *VPPMCPServer) HandleGoBGPParameterCommand(ctx context.Context, input BGPParameterCommandInput, commandTemplate, commandDescription string) (*mcp.CallToolResult, any, error) {
+	log.Printf("Received %s request for pod: %s, parameter: %s", commandDescription, input.PodName, input.Parameter)
+
+	if input.PodName == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "Error: Pod name is required. Please specify the Kubernetes pod name.",
+				},
+			},
+		}, nil, fmt.Errorf("pod name is required")
+	}
+
+	if input.Parameter == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "Error: Parameter is required. Please specify the IP address, prefix, or neighbor IP.",
+				},
+			},
+		}, nil, fmt.Errorf("parameter is required")
+	}
+
+	namespace := "calico-vpp-dataplane"
+
+	// Initialize Kubernetes client for validation
+	k8sClient, err := newKubeClient()
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error: Failed to create Kubernetes client: %v", err),
+				},
+			},
+		}, nil, err
+	}
+
+	// Validate pod exists
+	_, err = k8sClient.CoreV1().Pods(namespace).Get(ctx, input.PodName, metav1.GetOptions{})
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error validating pod: %v", err),
+				},
+			},
+		}, nil, err
+	}
+
+	// Build the command with parameter
+	command := fmt.Sprintf(commandTemplate, input.Parameter)
+	log.Printf("Executing gobgp %s command on pod: %s", command, input.PodName)
+
+	// Execute the gobgp command on the Kubernetes pod
+	result, err := ExecutePodGoBGPCommand(ctx, input.PodName, command)
+
+	if err != nil {
+		log.Printf("Error executing gobgp command: %v", err)
+	}
+
+	if success, ok := result["success"].(bool); ok && success {
+		output := result["output"].(string)
+		cmd := result["command"].(string)
+		node := result["node"].(string)
+		pod := result["pod"].(string)
+
+		response := &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("%s:\n\n%s\n\nCommand executed: gobgp %s\nNode: %s\nPod: %s (container: agent)",
+						commandDescription, output, cmd, node, pod),
+				},
+			},
+		}
+
+		log.Println("Successfully executed gobgp command, returning result")
+		return response, nil, nil
+	} else {
+		errorMsg := result["error"].(string)
+		cmd := result["command"].(string)
+		node := result["node"].(string)
+		pod, _ := result["pod"].(string)
+
+		errorResponse := &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error executing gobgp command on node %s (pod: %s): %s\nCommand attempted: gobgp %s",
+						node, pod, errorMsg, cmd),
+				},
+			},
+		}
+		log.Printf("Error executing gobgp command on node %s (pod: %s): %s", node, pod, errorMsg)
+		return errorResponse, nil, nil
+	}
+}
+
 // handleGetPods implements listing all calico-vpp pods with IPs and nodes
-func (s *VPPMCPServer) handleGetPods(ctx context.Context, input VPPGetPodsInput) (*mcp.CallToolResult, any, error) {
+func (s *VPPMCPServer) handleGetPods(ctx context.Context, input EmptyInput) (*mcp.CallToolResult, any, error) {
 	log.Printf("Received vpp_get_pods request")
 
 	// Execute kubectl command to get pods with wide output
@@ -445,11 +653,7 @@ func (s *VPPMCPServer) handleVPPCommand(ctx context.Context, input VPPCommandInp
 
 	// Execute the VPP command on the Kubernetes pod
 	log.Printf("About to execute pod VPP command...")
-	result, err := ExecutePodVPPCommand(ctx,
-		input.PodName,
-		input.Namespace,
-		input.ContainerName,
-		command)
+	result, err := ExecutePodVPPCommand(ctx, input.PodName, command)
 
 	log.Printf("Command execution completed, processing results...")
 	if err != nil {
@@ -460,13 +664,12 @@ func (s *VPPMCPServer) handleVPPCommand(ctx context.Context, input VPPCommandInp
 		output := result["output"].(string)
 		cmd := result["command"].(string)
 		pod := result["pod"].(string)
-		namespace := result["namespace"].(string)
 
 		response := &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
-					Text: fmt.Sprintf("%s:\n\n%s\n\nCommand executed: vppctl %s\nPod: %s\nNamespace: %s",
-						commandDescription, output, cmd, pod, namespace),
+					Text: fmt.Sprintf("%s:\n\n%s\n\nCommand executed: vppctl %s\nPod: %s (container: vpp)",
+						commandDescription, output, cmd, pod),
 				},
 			},
 		}
@@ -520,7 +723,7 @@ func (s *VPPMCPServer) handleVPPFIBCommand(ctx context.Context, input VPPFIBInpu
 	command := fmt.Sprintf(commandTemplate, input.FibIndex)
 	log.Printf("Executing vppctl %s command on pod: %s", command, input.PodName)
 
-	result, err := ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, command)
+	result, err := ExecutePodVPPCommand(ctx, input.PodName, command)
 
 	if err != nil {
 		log.Printf("Error executing VPP command: %v", err)
@@ -530,13 +733,12 @@ func (s *VPPMCPServer) handleVPPFIBCommand(ctx context.Context, input VPPFIBInpu
 		output := result["output"].(string)
 		cmd := result["command"].(string)
 		pod := result["pod"].(string)
-		namespace := result["namespace"].(string)
 
 		response := &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
-					Text: fmt.Sprintf("%s:\n\n%s\n\nCommand executed: vppctl %s\nPod: %s\nNamespace: %s",
-						commandDescription, output, cmd, pod, namespace),
+					Text: fmt.Sprintf("%s:\n\n%s\n\nCommand executed: vppctl %s\nPod: %s (container: vpp)",
+						commandDescription, output, cmd, pod),
 				},
 			},
 		}
@@ -600,7 +802,7 @@ func (s *VPPMCPServer) handleVPPFIBPrefixCommand(ctx context.Context, input VPPF
 	command := fmt.Sprintf(commandTemplate, input.FibIndex, input.Prefix)
 	log.Printf("Executing vppctl %s command on pod: %s", command, input.PodName)
 
-	result, err := ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, command)
+	result, err := ExecutePodVPPCommand(ctx, input.PodName, command)
 
 	if err != nil {
 		log.Printf("Error executing VPP command: %v", err)
@@ -610,13 +812,12 @@ func (s *VPPMCPServer) handleVPPFIBPrefixCommand(ctx context.Context, input VPPF
 		output := result["output"].(string)
 		cmd := result["command"].(string)
 		pod := result["pod"].(string)
-		namespace := result["namespace"].(string)
 
 		response := &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
-					Text: fmt.Sprintf("%s:\n\n%s\n\nCommand executed: vppctl %s\nPod: %s\nNamespace: %s",
-						commandDescription, output, cmd, pod, namespace),
+					Text: fmt.Sprintf("%s:\n\n%s\n\nCommand executed: vppctl %s\nPod: %s (container: vpp)",
+						commandDescription, output, cmd, pod),
 				},
 			},
 		}
@@ -667,20 +868,6 @@ func (s *VPPMCPServer) handleTraceCapture(ctx context.Context, input VPPCaptureI
 		}, nil, err
 	}
 
-	// Validate node name if provided
-	if input.NodeName != "" {
-		_, err := validateNodeName(k8sClient, input.NodeName)
-		if err != nil {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{
-					&mcp.TextContent{
-						Text: fmt.Sprintf("Error validating node: %v", err),
-					},
-				},
-			}, nil, err
-		}
-	}
-
 	// Map interface type to VPP input node
 	vppInputNode, _, err := mapInterfaceTypeToVppInputNode(k8sClient, input.Interface)
 	if err != nil {
@@ -701,7 +888,7 @@ func (s *VPPMCPServer) handleTraceCapture(ctx context.Context, input VPPCaptureI
 
 	// Step 1: Clear trace to ensure clean state
 	log.Printf("Clearing trace on pod %s", input.PodName)
-	_, err = ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, "clear trace")
+	_, err = ExecutePodVPPCommand(ctx, input.PodName, "clear trace")
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -715,7 +902,7 @@ func (s *VPPMCPServer) handleTraceCapture(ctx context.Context, input VPPCaptureI
 	// Step 2: Start trace capture
 	traceCmd := fmt.Sprintf("trace add %s %d", vppInputNode, count)
 	log.Printf("Starting trace: %s", traceCmd)
-	_, err = ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, traceCmd)
+	_, err = ExecutePodVPPCommand(ctx, input.PodName, traceCmd)
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -726,13 +913,14 @@ func (s *VPPMCPServer) handleTraceCapture(ctx context.Context, input VPPCaptureI
 		}, nil, err
 	}
 
-	// Step 3: Wait for capture (15 seconds or until count is reached)
-	log.Printf("Capturing packets for 15 seconds or until %d packets captured...", count)
-	time.Sleep(15 * time.Second)
+	// Step 3: Wait for capture (30 seconds or until count is reached)
+	log.Printf("Capturing packets for 30 seconds or until %d packets captured...", count)
+	time.Sleep(30 * time.Second)
 
 	// Step 4: Get trace results
+	traceCmd = fmt.Sprintf("show trace max %d", count)
 	log.Printf("Retrieving trace results...")
-	result, err := ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, "show trace")
+	result, err := ExecutePodVPPCommand(ctx, input.PodName, traceCmd)
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -744,15 +932,15 @@ func (s *VPPMCPServer) handleTraceCapture(ctx context.Context, input VPPCaptureI
 	}
 
 	// Step 5: Clear trace after retrieval
-	_, _ = ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, "clear trace")
+	_, _ = ExecutePodVPPCommand(ctx, input.PodName, "clear trace")
 
 	if success, ok := result["success"].(bool); ok && success {
 		output := result["output"].(string)
 		response := &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
-					Text: fmt.Sprintf("VPP Trace Capture Results:\n\n%s\n\nCapture Parameters:\n- Node: %s\n- Count: %d\n- Pod: %s\n- Namespace: %s",
-						output, vppInputNode, count, input.PodName, input.Namespace),
+					Text: fmt.Sprintf("VPP Trace Capture Results:\n\n%s\n\nCapture Parameters:\n- VPP Input Node: %s\n- Count: %d\n- Capture Duration: 30 seconds\n- Pod: %s\n\n**Important**: Trace is not saved to any file\n\n",
+						output, vppInputNode, count, input.PodName),
 				},
 			},
 		}
@@ -783,34 +971,8 @@ func (s *VPPMCPServer) handlePcapCapture(ctx context.Context, input VPPCaptureIn
 		}, nil, fmt.Errorf("PodName is required")
 	}
 
-	// Initialize Kubernetes client for validation
-	k8sClient, err := newKubeClient()
-	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: fmt.Sprintf("Error: Failed to create Kubernetes client: %v", err),
-				},
-			},
-		}, nil, err
-	}
-
-	// Validate node name if provided
-	if input.NodeName != "" {
-		_, err := validateNodeName(k8sClient, input.NodeName)
-		if err != nil {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{
-					&mcp.TextContent{
-						Text: fmt.Sprintf("Error validating node: %v", err),
-					},
-				},
-			}, nil, err
-		}
-	}
-
 	// Get list of available interfaces
-	interfaceResult, err := ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, "show int")
+	interfaceResult, err := ExecutePodVPPCommand(ctx, input.PodName, "show int")
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -835,11 +997,11 @@ func (s *VPPMCPServer) handlePcapCapture(ctx context.Context, input VPPCaptureIn
 
 	// Validate interface if provided
 	interfaceName := input.Interface
-	if interfaceName == "" || interfaceName == "any" {
-		// Use first available interface
-		interfaceName = availableInterfaces[0]
-	} else {
-		// Validate provided interface
+	if interfaceName == "" {
+		// Default to 'any' interface
+		interfaceName = "any"
+	} else if interfaceName != "any" {
+		// Validate provided interface (skip validation for 'any' since it's special)
 		found := false
 		for _, iface := range availableInterfaces {
 			if iface == interfaceName {
@@ -871,13 +1033,12 @@ func (s *VPPMCPServer) handlePcapCapture(ctx context.Context, input VPPCaptureIn
 
 	// Step 1: Stop any existing pcap capture
 	log.Printf("Stopping any existing pcap capture on pod %s", input.PodName)
-	_, _ = ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, "pcap trace off")
+	_, _ = ExecutePodVPPCommand(ctx, input.PodName, "pcap trace off")
 
 	// Step 2: Start pcap capture
-	pcapFile := fmt.Sprintf("/tmp/vpp-capture-%d.pcap", time.Now().Unix())
-	pcapCmd := fmt.Sprintf("pcap trace tx rx max %d intfc %s file %s", count, interfaceName, pcapFile)
+	pcapCmd := fmt.Sprintf("pcap trace tx rx max %d intfc %s file trace.pcap", count, interfaceName)
 	log.Printf("Starting pcap: %s", pcapCmd)
-	_, err = ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, pcapCmd)
+	_, err = ExecutePodVPPCommand(ctx, input.PodName, pcapCmd)
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -888,13 +1049,13 @@ func (s *VPPMCPServer) handlePcapCapture(ctx context.Context, input VPPCaptureIn
 		}, nil, err
 	}
 
-	// Step 3: Wait for capture (15 seconds or until count is reached)
-	log.Printf("Capturing packets for 15 seconds or until %d packets captured...", count)
-	time.Sleep(15 * time.Second)
+	// Step 3: Wait for capture (30 seconds or until count is reached)
+	log.Printf("Capturing packets for 30 seconds or until %d packets captured...", count)
+	time.Sleep(30 * time.Second)
 
 	// Step 4: Stop pcap capture
 	log.Printf("Stopping pcap capture...")
-	_, err = ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, "pcap trace off")
+	result, err := ExecutePodVPPCommand(ctx, input.PodName, "pcap trace off")
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -905,25 +1066,13 @@ func (s *VPPMCPServer) handlePcapCapture(ctx context.Context, input VPPCaptureIn
 		}, nil, err
 	}
 
-	// Step 5: Get pcap trace status
-	result, err := ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, "show pcap")
-	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: fmt.Sprintf("Error retrieving pcap status: %v", err),
-				},
-			},
-		}, nil, err
-	}
-
 	if success, ok := result["success"].(bool); ok && success {
 		output := result["output"].(string)
 		response := &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
-					Text: fmt.Sprintf("VPP PCAP Capture Results:\n\n%s\n\nCapture Parameters:\n- Interface: %s\n- Count: %d\n- File: %s\n- Pod: %s\n- Namespace: %s\n\nNote: Capture file saved at %s on the pod",
-						output, interfaceName, count, pcapFile, input.PodName, input.Namespace, pcapFile),
+					Text: fmt.Sprintf("VPP PCAP Capture Results:\n\n%s\n\nCapture Parameters:\n- Interface: %s\n- Count: %d\n- Capture Duration: 30 seconds\n- Pod: %s\n\n**Important**: PCAP file saved at /tmp/trace.pcap\n\n",
+						output, interfaceName, count, input.PodName),
 				},
 			},
 		}
@@ -966,20 +1115,6 @@ func (s *VPPMCPServer) handleDispatchCapture(ctx context.Context, input VPPCaptu
 		}, nil, err
 	}
 
-	// Validate node name if provided
-	if input.NodeName != "" {
-		_, err := validateNodeName(k8sClient, input.NodeName)
-		if err != nil {
-			return &mcp.CallToolResult{
-				Content: []mcp.Content{
-					&mcp.TextContent{
-						Text: fmt.Sprintf("Error validating node: %v", err),
-					},
-				},
-			}, nil, err
-		}
-	}
-
 	// Map interface type to VPP input node
 	vppInputNode, _, err := mapInterfaceTypeToVppInputNode(k8sClient, input.Interface)
 	if err != nil {
@@ -1000,13 +1135,12 @@ func (s *VPPMCPServer) handleDispatchCapture(ctx context.Context, input VPPCaptu
 
 	// Step 1: Stop any existing dispatch trace
 	log.Printf("Stopping any existing dispatch trace on pod %s", input.PodName)
-	_, _ = ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, "pcap dispatch trace off")
+	_, _ = ExecutePodVPPCommand(ctx, input.PodName, "pcap dispatch trace off")
 
 	// Step 2: Start dispatch trace capture
-	pcapFile := fmt.Sprintf("/tmp/vpp-dispatch-%d.pcap", time.Now().Unix())
-	dispatchCmd := fmt.Sprintf("pcap dispatch trace on max %d buffer-trace %s %d file %s", count, vppInputNode, count, pcapFile)
+	dispatchCmd := fmt.Sprintf("pcap dispatch trace on max %d buffer-trace %s %d", count, vppInputNode, count)
 	log.Printf("Starting dispatch trace: %s", dispatchCmd)
-	_, err = ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, dispatchCmd)
+	_, err = ExecutePodVPPCommand(ctx, input.PodName, dispatchCmd)
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -1017,13 +1151,13 @@ func (s *VPPMCPServer) handleDispatchCapture(ctx context.Context, input VPPCaptu
 		}, nil, err
 	}
 
-	// Step 3: Wait for capture (15 seconds or until count is reached)
-	log.Printf("Capturing packets for 15 seconds or until %d packets captured...", count)
-	time.Sleep(15 * time.Second)
+	// Step 3: Wait for capture (30 seconds or until count is reached)
+	log.Printf("Capturing packets for 30 seconds or until %d packets captured...", count)
+	time.Sleep(30 * time.Second)
 
 	// Step 4: Stop dispatch trace
 	log.Printf("Stopping dispatch trace...")
-	_, err = ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, "pcap dispatch trace off")
+	result, err := ExecutePodVPPCommand(ctx, input.PodName, "pcap dispatch trace off")
 	if err != nil {
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
@@ -1034,25 +1168,13 @@ func (s *VPPMCPServer) handleDispatchCapture(ctx context.Context, input VPPCaptu
 		}, nil, err
 	}
 
-	// Step 5: Get dispatch trace status
-	result, err := ExecutePodVPPCommand(ctx, input.PodName, input.Namespace, input.ContainerName, "show pcap")
-	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: fmt.Sprintf("Error retrieving dispatch trace status: %v", err),
-				},
-			},
-		}, nil, err
-	}
-
 	if success, ok := result["success"].(bool); ok && success {
 		output := result["output"].(string)
 		response := &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
-					Text: fmt.Sprintf("VPP Dispatch Trace Results:\n\n%s\n\nCapture Parameters:\n- Node: %s\n- Count: %d\n- File: %s\n- Pod: %s\n- Namespace: %s\n\nNote: Capture file saved at %s on the pod",
-						output, vppInputNode, count, pcapFile, input.PodName, input.Namespace, pcapFile),
+					Text: fmt.Sprintf("VPP Dispatch Trace Results:\n\n%s\n\nCapture Parameters:\n- VPP Input Node: %s\n- Count: %d\n- Capture Duration: 30 seconds\n- Pod: %s\n\n**Important**: Dispatch PCAP file saved at /tmp/dispatch.pcap\n\n",
+						output, vppInputNode, count, input.PodName),
 				},
 			},
 		}
@@ -1201,13 +1323,12 @@ func main() {
 			"Required parameters:\n" +
 			"- pod_name: The name of the Kubernetes pod running VPP\n\n" +
 			"Optional parameters:\n" +
-			"- node_name: Kubernetes node name (validated against cluster)\n" +
 			"- count: Number of packets to capture (default: 500)\n" +
 			"- interface: Interface type - phy|af_xdp|af_packet|avf|vmxnet3|virtio|rdma|dpdk|memif|vcl (default: virtio)\n\n" +
 			"The tool will:\n" +
 			"1. Clear existing traces\n" +
 			"2. Start packet capture\n" +
-			"3. Wait 15 seconds or until count is reached\n" +
+			"3. Wait 30 seconds or until count is reached\n" +
 			"4. Display captured traces",
 	}
 	mcp.AddTool(vppServer.server, toolTrace, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCaptureInput) (*mcp.CallToolResult, any, error) {
@@ -1221,13 +1342,12 @@ func main() {
 			"Required parameters:\n" +
 			"- pod_name: The name of the Kubernetes pod running VPP\n\n" +
 			"Optional parameters:\n" +
-			"- node_name: Kubernetes node name (validated against cluster)\n" +
 			"- count: Number of packets to capture (default: 500)\n" +
 			"- interface: Interface name (e.g., host-eth0) or 'any' (default: first available interface)\n\n" +
 			"The tool will:\n" +
 			"1. Validate the interface exists\n" +
 			"2. Start pcap capture on tx/rx\n" +
-			"3. Wait 15 seconds or until count is reached\n" +
+			"3. Wait 30 seconds or until count is reached\n" +
 			"4. Stop capture and save to /tmp/vpp-capture-<timestamp>.pcap\n" +
 			"5. Display capture status",
 	}
@@ -1242,12 +1362,11 @@ func main() {
 			"Required parameters:\n" +
 			"- pod_name: The name of the Kubernetes pod running VPP\n\n" +
 			"Optional parameters:\n" +
-			"- node_name: Kubernetes node name (validated against cluster)\n" +
 			"- count: Number of packets to capture (default: 500)\n" +
 			"- interface: Interface type - phy|af_xdp|af_packet|avf|vmxnet3|virtio|rdma|dpdk|memif|vcl (default: virtio)\n\n" +
 			"The tool will:\n" +
 			"1. Start dispatch trace with buffer trace\n" +
-			"2. Wait 15 seconds or until count is reached\n" +
+			"2. Wait 30 seconds or until count is reached\n" +
 			"3. Stop capture and save to /tmp/vpp-dispatch-<timestamp>.pcap\n" +
 			"4. Display capture status",
 	}
@@ -1267,7 +1386,7 @@ func main() {
 			"- Age and other metadata\n\n" +
 			"No parameters required.",
 	}
-	mcp.AddTool(vppServer.server, toolGetPods, func(ctx context.Context, req *mcp.CallToolRequest, input VPPGetPodsInput) (*mcp.CallToolResult, any, error) {
+	mcp.AddTool(vppServer.server, toolGetPods, func(ctx context.Context, req *mcp.CallToolRequest, input EmptyInput) (*mcp.CallToolResult, any, error) {
 		return vppServer.handleGetPods(ctx, input)
 	})
 
@@ -1329,7 +1448,7 @@ func main() {
 	// Define vpp_show_cnat_session tool
 	toolShowCnatSession := &mcp.Tool{
 		Name: "vpp_show_cnat_session",
-		Description: "Lists the active CNAT sessions from the established five tuple to the five tuple rewrites by running 'vppctl cnat session' in a Kubernetes VPP container\n\n" +
+		Description: "Lists the active CNAT sessions from the established five tuple to the five tuple rewrites by running 'vppctl show cnat session' in a Kubernetes VPP container\n\n" +
 			"Output interpretation:\n" +
 			"The output shows the `incoming 5-tuple` first that is used to match packets along with the `protocol`. " +
 			"Then it displays the `5-tuple after dNAT & sNAT`, followed by the `direction` and finally the `age` in seconds. " +
@@ -1338,7 +1457,7 @@ func main() {
 			"- pod_name: The name of the Kubernetes pod running VPP",
 	}
 	mcp.AddTool(vppServer.server, toolShowCnatSession, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
-		return vppServer.handleVPPCommand(ctx, input, "cnat session", "VPP CNAT Session")
+		return vppServer.handleVPPCommand(ctx, input, "show cnat session", "VPP CNAT Session")
 	})
 
 	// Define vpp_clear_run tool
@@ -1441,6 +1560,108 @@ func main() {
 		return vppServer.handleVPPFIBPrefixCommand(ctx, input, "show ip6 fib index %s %s", "VPP IPv6 FIB Prefix Information")
 	})
 
+	// Define bgp_show_neighbors tool
+	toolBgpShowNeighbors := &mcp.Tool{
+		Name: "bgp_show_neighbors",
+		Description: "Show BGP peers by running 'gobgp neighbor' in the agent container of a calico-vpp pod\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running the agent container with gobgp\n\n" +
+			"Output interpretation:\n" +
+			"- Established peerings will show up as Establ\n" +
+			"- Unsuccessful connections will show up as Opened with 0 in #Received Accepted\n" +
+			"- CalicoVPP learns about new peers using the kubernetes API. If peers are missing from this list, there might be an issue accessing this API",
+	}
+	mcp.AddTool(vppServer.server, toolBgpShowNeighbors, func(ctx context.Context, req *mcp.CallToolRequest, input BGPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.HandleGoBGPCommand(ctx, input, "neighbor", "BGP Neighbor Information")
+	})
+
+	// Define bgp_show_global_info tool
+	toolBgpShowGlobalInfo := &mcp.Tool{
+		Name: "bgp_show_global_info",
+		Description: "Show BGP global information by running 'gobgp global' in the agent container of a calico-vpp pod\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running the agent container with gobgp\n\n" +
+			"Output interpretation:\n" +
+			"- Shows the information goBGP advertises to peers",
+	}
+	mcp.AddTool(vppServer.server, toolBgpShowGlobalInfo, func(ctx context.Context, req *mcp.CallToolRequest, input BGPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.HandleGoBGPCommand(ctx, input, "global", "BGP Global Information")
+	})
+
+	// Define bgp_show_global_rib4 tool
+	toolBgpShowGlobalRib4 := &mcp.Tool{
+		Name: "bgp_show_global_rib4",
+		Description: "Show BGP IPv4 RIB information by running 'gobgp global rib -a 4' in the agent container of a calico-vpp pod\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running the agent container with gobgp\n\n" +
+			"Output interpretation:\n" +
+			"- Prints out the IPv4 prefixes advertised by peers\n" +
+			"- Next Hop being the peer's IP\n" +
+			"- Shows all route information",
+	}
+	mcp.AddTool(vppServer.server, toolBgpShowGlobalRib4, func(ctx context.Context, req *mcp.CallToolRequest, input BGPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.HandleGoBGPCommand(ctx, input, "global rib -a 4", "BGP IPv4 RIB Information")
+	})
+
+	// Define bgp_show_global_rib6 tool
+	toolBgpShowGlobalRib6 := &mcp.Tool{
+		Name: "bgp_show_global_rib6",
+		Description: "Show BGP IPv6 RIB information by running 'gobgp global rib -a 6' in the agent container of a calico-vpp pod\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running the agent container with gobgp\n\n" +
+			"Output interpretation:\n" +
+			"- Prints out the IPv6 prefixes advertised by peers\n" +
+			"- Next Hop being the peer's IP\n" +
+			"- Shows all route information",
+	}
+	mcp.AddTool(vppServer.server, toolBgpShowGlobalRib6, func(ctx context.Context, req *mcp.CallToolRequest, input BGPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.HandleGoBGPCommand(ctx, input, "global rib -a 6", "BGP IPv6 RIB Information")
+	})
+
+	// Define bgp_show_ip tool
+	toolBgpShowIp := &mcp.Tool{
+		Name: "bgp_show_ip",
+		Description: "Show BGP RIB entry for a specific IP by running 'gobgp global rib <ip>' in the agent container of a calico-vpp pod\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running the agent container with gobgp\n" +
+			"- ip: The IP address to query\n\n" +
+			"Output interpretation:\n" +
+			"- Prints the RIB entry for that specific IP\n" +
+			"- Shows specific route information",
+	}
+	mcp.AddTool(vppServer.server, toolBgpShowIp, func(ctx context.Context, req *mcp.CallToolRequest, input BGPParameterCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.HandleGoBGPParameterCommand(ctx, input, "global rib %s", "BGP RIB Entry for IP")
+	})
+
+	// Define bgp_show_prefix tool
+	toolBgpShowPrefix := &mcp.Tool{
+		Name: "bgp_show_prefix",
+		Description: "Show BGP RIB entry for a specific prefix by running 'gobgp global rib <prefix>' in the agent container of a calico-vpp pod\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running the agent container with gobgp\n" +
+			"- prefix: The prefix to query (e.g., 10.0.0.0/24)\n\n" +
+			"Output interpretation:\n" +
+			"- Prints the RIB entry for that specific prefix\n" +
+			"- Shows specific route information",
+	}
+	mcp.AddTool(vppServer.server, toolBgpShowPrefix, func(ctx context.Context, req *mcp.CallToolRequest, input BGPParameterCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.HandleGoBGPParameterCommand(ctx, input, "global rib %s", "BGP RIB Entry for Prefix")
+	})
+
+	// Define bgp_show_neighbor tool
+	toolBgpShowNeighbor := &mcp.Tool{
+		Name: "bgp_show_neighbor",
+		Description: "Show detailed information for a specific BGP neighbor by running 'gobgp neighbor <neighborIP>' in the agent container of a calico-vpp pod\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running the agent container with gobgp\n" +
+			"- neighbor_ip: The IP address of the BGP neighbor\n\n" +
+			"Output interpretation:\n" +
+			"- Prints detailed status information for the specified BGP peer",
+	}
+	mcp.AddTool(vppServer.server, toolBgpShowNeighbor, func(ctx context.Context, req *mcp.CallToolRequest, input BGPParameterCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.HandleGoBGPParameterCommand(ctx, input, "neighbor %s", "BGP Neighbor Details")
+	})
+
 	// Create context with cancellation
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1476,7 +1697,11 @@ func runStdioTransport(ctx context.Context, vppServer *VPPMCPServer) {
 		log.Fatalf("Failed to connect server: %v", err)
 	}
 	log.Println("MCP server connected successfully")
-	defer session.Close()
+	defer func() {
+		if err := session.Close(); err != nil {
+			log.Printf("Error closing session: %v", err)
+		}
+	}()
 
 	// Wait for the session to complete
 	log.Println("Waiting for session to complete...")
@@ -1502,13 +1727,16 @@ func runHTTPTransport(ctx context.Context, vppServer *VPPMCPServer, port string,
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, err := w.Write([]byte("OK"))
+		if err != nil {
+			log.Printf("Error writing response: %v", err)
+		}
 	})
 
 	// Root endpoint with info
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(`<!DOCTYPE html>
+		html := `<!DOCTYPE html>
 <html>
 <head><title>VPP MCP Server</title></head>
 <body>
@@ -1521,7 +1749,11 @@ func runHTTPTransport(ctx context.Context, vppServer *VPPMCPServer, port string,
 	</ul>
 	<p>Use an MCP client to connect to the /sse endpoint.</p>
 </body>
-</html>`))
+</html>`
+		_, err := w.Write([]byte(html))
+		if err != nil {
+			log.Printf("Error writing HTML response: %v", err)
+		}
 	})
 
 	// Create HTTP server

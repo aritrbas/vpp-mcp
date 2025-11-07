@@ -72,6 +72,12 @@ clean:
 	rm -f $(BINARY_NAME)
 	rm -rf $(BUILD_DIR)
 
+# Run linter
+.PHONY: lint
+lint:
+	@echo "Running linter..."
+	golangci-lint run --color=never
+
 # Show help
 .PHONY: help
 help:
@@ -84,5 +90,6 @@ help:
 	@echo "  deps         - Download Go dependencies"
 	@echo "  run          - Build and run the server"
 	@echo "  test         - Run setup tests"
+	@echo "  lint         - Run the linter"
 	@echo "  clean        - Clean build artifacts"
 	@echo "  help         - Show this help message"

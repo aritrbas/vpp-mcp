@@ -1,18 +1,46 @@
 #!/bin/bash
 
-# Test script for VPP MCP Server HTTP transport
+# Test script for VPP MCP Server
+# This script tests the MCP server using HTTP transport
+
+set -e
 
 PORT=9090
 TIMEOUT=5
 
-echo "Starting VPP MCP Server on port $PORT..."
+echo ""
+echo "=================================="
+echo "VPP MCP Server Test HTTP Transport"
+echo "=================================="
+echo ""
+echo -e "${YELLOW}Testing HTTP endpoints and connectivity${NC}"
+echo ""
+echo -e "${YELLOW}Note:${NC} Full MCP testing over HTTP requires a specialized SSE client."
+echo "This script will only verify whether the HTTP server is running correctly."
+echo "For full tool testing, use the stdio demo test script or a dedicated MCP client."
+echo ""
+echo -e "${YELLOW}Starting VPP MCP Server on port $PORT...${NC}"
+
+# Colors for output
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Check if the server binary exists
+if [ ! -f "./vpp-mcp-server" ]; then
+    echo -e "${RED}Error: vpp-mcp-server binary not found${NC}"
+    echo "Please run: go build -o vpp-mcp-server main.go"
+    exit 1
+fi
+
 ./vpp-mcp-server --transport=http --port=$PORT > /tmp/vpp-mcp-test.log 2>&1 &
 SERVER_PID=$!
 
 # Wait for server to start
 sleep 2
 
-echo "Testing endpoints..."
+echo -e "${YELLOW}Step 1: Testing endpoints...${NC}"
 
 # Test health endpoint
 echo -n "Health check: "
@@ -41,13 +69,15 @@ fi
 
 # Cleanup
 echo ""
+echo -e "${YELLOW}Step 3: Cleanup...${NC}"
 echo "Stopping server (PID: $SERVER_PID)..."
 kill $SERVER_PID 2>/dev/null
 wait $SERVER_PID 2>/dev/null
 
 echo ""
-echo "Server logs:"
+echo -e "${YELLOW}Server logs:${NC}"
 cat /tmp/vpp-mcp-test.log
 
-echo ""
-echo "Test complete!"
+echo "=================================================="
+echo -e "${GREEN}✓ MCP HTTP Server tests completed${NC}"
+echo "=================================================="

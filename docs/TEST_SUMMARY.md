@@ -2,7 +2,7 @@
 
 ## ✅ All Tests Passed
 
-Your VPP MCP server has been successfully tested with 27 tools (23 tested automatically, 4 require additional parameters).
+Your VPP MCP server has been successfully tested with 34 tools (27 VPP tools + 7 BGP tools).
 
 ## Test Results
 
@@ -14,19 +14,19 @@ Your VPP MCP server has been successfully tested with 27 tools (23 tested automa
 | `vpp_show_errors` | ✅ | `vppctl show errors` | Error counters per node |
 | `vpp_show_session_verbose` | ✅ | `vppctl show session verbose 2` | Session information |
 | `vpp_show_npol_rules` | ✅ | `vppctl show npol rules` | Network policy rules |
-| `vpp_show_npol_policies` | ✅ | `vppctl show npol policies` | Network policy summaries |
+| `vpp_show_npol_policies` | ✅ | `vppctl show npol policies` | Network policy summary |
 | `vpp_show_npol_ipset` | ✅ | `vppctl show npol ipset` | IPsets referenced by rules |
 | `vpp_show_npol_interfaces` | ✅ | `vppctl show npol interfaces` | Policies on interfaces |
-| `vpp_trace` | ✅ | `vppctl trace add` | Packet trace capture |
-| `vpp_pcap` | ✅ | `vppctl pcap trace` | PCAP capture to file |
-| `vpp_dispatch` | ✅ | `vppctl pcap dispatch trace` | Dispatch trace capture |
+| `vpp_trace` | ✅ | `vppctl trace add` | Packet trace capture (default interface: 'virtio') |
+| `vpp_pcap` | ✅ | `vppctl pcap trace` | PCAP capture (default interface: 'any') |
+| `vpp_dispatch` | ✅ | `vppctl pcap dispatch trace` | Dispatch trace capture (default interface: 'virtio')|
 | `vpp_get_pods` | ✅ | `kubectl get pods -n calico-vpp-dataplane -owide` | List all calico-vpp pods |
 | `vpp_clear_errors` | ✅ | `vppctl clear errors` | Reset error counters |
 | `vpp_tcp_stats` | ✅ | `vppctl show tcp stats` | TCP statistics |
 | `vpp_session_stats` | ✅ | `vppctl show session stats` | Session layer statistics |
 | `vpp_get_logs` | ✅ | `vppctl show logging` | VPP logs |
 | `vpp_show_cnat_translation` | ✅ | `vppctl show cnat translation` | Active CNAT translations |
-| `vpp_show_cnat_session` | ✅ | `vppctl cnat session` | Active CNAT sessions |
+| `vpp_show_cnat_session` | ✅ | `vppctl show cnat session` | Active CNAT sessions |
 | `vpp_clear_run` | ✅ | `vppctl clear run` | Clear runtime statistics |
 | `vpp_show_run` | ✅ | `vppctl show run` | Runtime statistics |
 | `vpp_show_ip_table` | ✅ | `vppctl show ip table` | IPv4 VRF tables |
@@ -35,6 +35,13 @@ Your VPP MCP server has been successfully tested with 27 tools (23 tested automa
 | `vpp_show_ip6_fib` | ✅ | `vppctl show ip6 fib index <idx>` | IPv6 FIB routes |
 | `vpp_show_ip_fib_prefix` | ✅ | `vppctl show ip fib index <idx> <prefix>` | IPv4 FIB prefix info |
 | `vpp_show_ip6_fib_prefix` | ✅ | `vppctl show ip6 fib index <idx> <prefix>` | IPv6 FIB prefix info |
+| `bgp_show_neighbors` | ✅ | `gobgp neighbor` | BGP neighbors |
+| `bgp_show_global_info` | ✅ | `gobgp global` | BGP global information |
+| `bgp_show_global_rib4` | ✅ | `gobgp global rib -a 4` | BGP IPv4 RIB information |
+| `bgp_show_global_rib6` | ✅ | `gobgp global rib -a 6` | BGP IPv6 RIB information |
+| `bgp_show_ip` | ✅ | `gobgp global rib <ip>` | BGP RIB entry for IP |
+| `bgp_show_prefix` | ✅ | `gobgp global rib <prefix>` | BGP RIB entry for prefix |
+| `bgp_show_neighbor` | ✅ | `gobgp neighbor <neighborIP>` | BGP neighbor details |
 
 ## Test Methods Available
 
@@ -194,9 +201,3 @@ Count       Node                    Reason
 
 - `../README.md` - Full project documentation
 - `../examples/example_mcp_requests.json` - API reference
-
----
-
-**Status**: ✅ Ready for Production Use
-
-All 27 VPP debugging tools are working correctly and ready to use with any MCP client!

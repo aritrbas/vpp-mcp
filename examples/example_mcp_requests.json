@@ -38,9 +38,7 @@
       "params": {
         "name": "vpp_show_version",
         "arguments": {
-          "pod_name": "YOUR_POD_NAME",
-          "namespace": "calico-vpp-dataplane",
-          "container_name": "vpp"
+          "pod_name": "YOUR_POD_NAME"
         }
       }
     }
@@ -55,8 +53,7 @@
       "params": {
         "name": "vpp_show_int",
         "arguments": {
-          "pod_name": "YOUR_POD_NAME",
-          "namespace": "calico-vpp-dataplane"
+          "pod_name": "YOUR_POD_NAME"
         }
       }
     }
@@ -396,13 +393,167 @@
     }
   },
   
+  "27_call_vpp_trace": {
+    "description": "Call vpp_trace tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 27,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_trace",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+
+  "28_call_vpp_pcap": {
+    "description": "Call vpp_pcap tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 28,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_pcap",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+
+  "29_call_vpp_dispatch": {
+    "description": "Call vpp_dispatch tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 29,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_dispatch",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+
+  "30_call_bgp_show_neighbors": {
+    "description": "Call bgp_show_neighbors tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 30,
+      "method": "tools/call",
+      "params": {
+        "name": "bgp_show_neighbors",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+
+  "31_call_bgp_show_global_info": {
+    "description": "Call bgp_show_global_info tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 31,
+      "method": "tools/call",
+      "params": {
+        "name": "bgp_show_global_info",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+
+  "32_call_bgp_show_global_rib4": {
+    "description": "Call bgp_show_global_rib4 tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 32,
+      "method": "tools/call",
+      "params": {
+        "name": "bgp_show_global_rib4",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+
+  "33_call_bgp_show_global_rib6": {
+    "description": "Call bgp_show_global_rib6 tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 33,
+      "method": "tools/call",
+      "params": {
+        "name": "bgp_show_global_rib6",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+
+  "34_call_bgp_show_ip": {
+    "description": "Call bgp_show_ip tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 34,
+      "method": "tools/call",
+      "params": {
+        "name": "bgp_show_ip",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME",
+          "parameter": "10.0.0.1"
+        }
+      }
+    }
+  },
+
+  "35_call_bgp_show_prefix": {
+    "description": "Call bgp_show_prefix tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 35,
+      "method": "tools/call",
+      "params": {
+        "name": "bgp_show_prefix",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME",
+          "parameter": "10.0.0.0/24"
+        }
+      }
+    }
+  },
+
+  "36_call_bgp_show_neighbor": {
+    "description": "Call bgp_show_neighbor tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 36,
+      "method": "tools/call",
+      "params": {
+        "name": "bgp_show_neighbor",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME",
+          "parameter": "192.168.1.1"
+        }
+      }
+    }
+  },
+
   "usage_example": {
     "description": "How to use these requests",
     "steps": [
       "1. Replace YOUR_POD_NAME with actual VPP pod name",
-      "2. Send initialize request first",
-      "3. Then send other requests in sequence",
-      "4. Example: echo '{...json...}' | ./vpp-mcp-server"
+      "2. Replace parameter values (IPs, prefixes) with actual values",
+      "3. Send initialize request first",
+      "4. Then send other requests in sequence",
+      "5. Example: echo '{...json...}' | ./vpp-mcp-server"
     ]
   }
 }
