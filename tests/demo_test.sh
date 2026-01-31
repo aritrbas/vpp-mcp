@@ -39,7 +39,7 @@ fi
 echo "=========================================="
 echo "VPP MCP Server Demo"
 echo "=========================================="
-echo -e "${YELLOW}Testing all 34 MCP server tools against pod: ${GREEN}$POD_NAME${NC}"
+echo -e "${YELLOW}Testing all 35 MCP server tools against pod: ${GREEN}$POD_NAME${NC}"
 echo ""
 
 # Function to test a tool
@@ -95,6 +95,16 @@ test_tool() {
                 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
                 sleep 0.3
                 echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\",\"fib_index\":\"$FIB_INDEX\",\"prefix\":\"$PREFIX\"}}}";
+                sleep 1.5
+            ) | timeout 5s ./vpp-mcp-server 2>/dev/null
+        )
+    elif [[ "$tool_name" == "vpp_capture_cleanup" ]]; then
+        # vpp_capture_cleanup takes pod_name like a normal tool
+        RESULT=$(
+            (
+                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
+                sleep 0.3
+                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\"}}}";
                 sleep 1.5
             ) | timeout 5s ./vpp-mcp-server 2>/dev/null
         )
@@ -201,6 +211,7 @@ test_tool "vpp_show_npol_interfaces" "VPP NPOL Interfaces"
 test_tool "vpp_trace" "VPP Trace Capture"
 test_tool "vpp_pcap" "VPP PCAP Capture"
 test_tool "vpp_dispatch" "VPP Dispatch Trace"
+test_tool "vpp_capture_cleanup" "VPP Capture Cleanup"
 test_tool "vpp_get_pods" "VPP Get Pods"
 test_tool "vpp_clear_errors" "VPP Clear Errors"
 test_tool "vpp_tcp_stats" "VPP TCP Statistics"
@@ -228,7 +239,7 @@ echo "=========================================="
 echo "✓ Demo completed!"
 echo "=========================================="
 echo ""
-echo "📊 All 34 tools tested successfully"
+echo "📊 All 35 tools tested successfully"
 echo "🎯 MCP server is working correctly"
 echo ""
 echo "Next steps:"
