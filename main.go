@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -260,8 +261,10 @@ type VPPCommandInput struct {
 type VPPCaptureInput struct {
 	// PodName specifies the name of the Kubernetes pod running VPP
 	PodName string `json:"pod_name"`
-	// Count specifies the number of packets to capture (default: run for 30 seconds)
+	// Count specifies the number of packets to capture (default: 500)
 	Count int `json:"count,omitempty"`
+	// Timeout specifies the capture duration in seconds (default: 30)
+	Timeout int `json:"timeout,omitempty"`
 	// Interface specifies the interface type or name to capture from
 	Interface string `json:"interface,omitempty"`
 }
@@ -309,6 +312,116 @@ type VPPMCPServer struct {
 // NewVPPMCPServer creates a new VPP MCP server
 func NewVPPMCPServer() *VPPMCPServer {
 	return &VPPMCPServer{}
+}
+
+const captureLockFile = "/tmp/vpp-mcp-capture.lock"
+
+// captureMutex provides in-process locking for capture operations
+var captureMutex sync.Mutex
+
+// CaptureLockInfo represents the information stored in the lock file
+type CaptureLockInfo struct {
+	Operation   string    `json:"operation"`
+	CaptureType string    `json:"capture_type"`
+	StartedAt   time.Time `json:"started_at"`
+	Hostname    string    `json:"hostname"`
+	PodName     string    `json:"pod_name"`
+}
+
+// checkCaptureLock checks if a capture lock exists on the specified pod
+func checkCaptureLock(ctx context.Context, podName string) (*CaptureLockInfo, error) {
+	// Use kubectl exec to run cat on the lock file
+	cmdArgs := []string{
+		"exec", "-n", "calico-vpp-dataplane", podName, "-c", "vpp",
+		"--", "cat", captureLockFile,
+	}
+
+	cmdCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(cmdCtx, "kubectl", cmdArgs...)
+	output, err := cmd.Output()
+	if err != nil {
+		// Lock file doesn't exist or can't be read - no lock
+		return nil, nil
+	}
+
+	var lockInfo CaptureLockInfo
+	if err := json.Unmarshal(output, &lockInfo); err != nil {
+		return nil, fmt.Errorf("failed to parse lock file: %v", err)
+	}
+
+	return &lockInfo, nil
+}
+
+// createCaptureLock creates a capture lock on the specified pod
+func createCaptureLock(ctx context.Context, podName, operation, captureType string) error {
+	hostname, _ := os.Hostname()
+
+	lockInfo := CaptureLockInfo{
+		Operation:   operation,
+		CaptureType: captureType,
+		StartedAt:   time.Now(),
+		Hostname:    hostname,
+		PodName:     podName,
+	}
+
+	lockJSON, err := json.Marshal(lockInfo)
+	if err != nil {
+		return fmt.Errorf("failed to marshal lock info: %v", err)
+	}
+
+	// Use kubectl exec to write lock file
+	cmdArgs := []string{
+		"exec", "-n", "calico-vpp-dataplane", podName, "-c", "vpp",
+		"--", "sh", "-c", fmt.Sprintf("echo '%s' > %s", string(lockJSON), captureLockFile),
+	}
+
+	cmdCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(cmdCtx, "kubectl", cmdArgs...)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to create lock file: %v", err)
+	}
+
+	return nil
+}
+
+// removeCaptureLock removes the capture lock from the specified pod
+func removeCaptureLock(ctx context.Context, podName string) error {
+	cmdArgs := []string{
+		"exec", "-n", "calico-vpp-dataplane", podName, "-c", "vpp",
+		"--", "rm", "-f", captureLockFile,
+	}
+
+	cmdCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(cmdCtx, "kubectl", cmdArgs...)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to remove lock file: %v", err)
+	}
+
+	return nil
+}
+
+// cleanupCaptureFiles removes temporary capture files from the pod
+func cleanupCaptureFiles(ctx context.Context, podName string) error {
+	cmdArgs := []string{
+		"exec", "-n", "calico-vpp-dataplane", podName, "-c", "vpp",
+		"--", "sh", "-c", "rm -f /tmp/trace.pcap /tmp/dispatch.pcap /tmp/*.pcap.gz",
+	}
+
+	cmdCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(cmdCtx, "kubectl", cmdArgs...)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to cleanup capture files: %v", err)
+	}
+
+	return nil
 }
 
 // ExecutePodGoBGPCommand runs a gobgp command directly on a specified Kubernetes pod
@@ -842,7 +955,7 @@ func (s *VPPMCPServer) handleVPPFIBPrefixCommand(ctx context.Context, input VPPF
 	}
 }
 
-// handleTraceCapture implements VPP trace capture
+// handleTraceCapture implements VPP trace capture with locking
 func (s *VPPMCPServer) handleTraceCapture(ctx context.Context, input VPPCaptureInput) (*mcp.CallToolResult, any, error) {
 	log.Printf("Received trace capture request for pod: %s", input.PodName)
 
@@ -855,6 +968,47 @@ func (s *VPPMCPServer) handleTraceCapture(ctx context.Context, input VPPCaptureI
 			},
 		}, nil, fmt.Errorf("PodName is required")
 	}
+
+	// Acquire in-process lock
+	captureMutex.Lock()
+	defer captureMutex.Unlock()
+
+	// Check for existing capture lock
+	lockInfo, err := checkCaptureLock(ctx, input.PodName)
+	if err != nil {
+		log.Printf("Warning: Failed to check capture lock: %v", err)
+	}
+	if lockInfo != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error: A capture operation is already running.\n\n"+
+						"Active capture details:\n"+
+						"- Operation: %s\n"+
+						"- Type: %s\n"+
+						"- Started: %s\n"+
+						"- Started by: %s\n"+
+						"- Pod: %s\n\n"+
+						"Use 'vpp_capture_cleanup' to force cleanup if the previous operation failed.",
+						lockInfo.Operation, lockInfo.CaptureType,
+						lockInfo.StartedAt.Format("2006-01-02 15:04:05"),
+						lockInfo.Hostname, lockInfo.PodName),
+				},
+			},
+		}, nil, fmt.Errorf("capture already in progress")
+	}
+
+	// Create capture lock
+	if err := createCaptureLock(ctx, input.PodName, "trace", "packet_trace"); err != nil {
+		log.Printf("Warning: Failed to create capture lock: %v", err)
+	}
+
+	// Ensure cleanup on exit
+	defer func() {
+		if err := removeCaptureLock(ctx, input.PodName); err != nil {
+			log.Printf("Warning: Failed to remove capture lock: %v", err)
+		}
+	}()
 
 	// Initialize Kubernetes client for validation
 	k8sClient, err := newKubeClient()
@@ -880,28 +1034,23 @@ func (s *VPPMCPServer) handleTraceCapture(ctx context.Context, input VPPCaptureI
 		}, nil, err
 	}
 
-	// Determine count (default 500 if not specified)
+	// Determine count and timeout
 	count := input.Count
 	if count == 0 {
 		count = 500
 	}
+	timeout := input.Timeout
+	if timeout == 0 {
+		timeout = 30
+	}
+
+	log.Printf("Starting trace capture on pod %s (count=%d, timeout=%ds, node=%s)", input.PodName, count, timeout, vppInputNode)
 
 	// Step 1: Clear trace to ensure clean state
-	log.Printf("Clearing trace on pod %s", input.PodName)
-	_, err = ExecutePodVPPCommand(ctx, input.PodName, "clear trace")
-	if err != nil {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: fmt.Sprintf("Error clearing trace: %v", err),
-				},
-			},
-		}, nil, err
-	}
+	_, _ = ExecutePodVPPCommand(ctx, input.PodName, "clear trace")
 
 	// Step 2: Start trace capture
 	traceCmd := fmt.Sprintf("trace add %s %d", vppInputNode, count)
-	log.Printf("Starting trace: %s", traceCmd)
 	_, err = ExecutePodVPPCommand(ctx, input.PodName, traceCmd)
 	if err != nil {
 		return &mcp.CallToolResult{
@@ -913,15 +1062,15 @@ func (s *VPPMCPServer) handleTraceCapture(ctx context.Context, input VPPCaptureI
 		}, nil, err
 	}
 
-	// Step 3: Wait for capture (30 seconds or until count is reached)
-	log.Printf("Capturing packets for 30 seconds or until %d packets captured...", count)
-	time.Sleep(30 * time.Second)
+	// Step 3: Wait for capture
+	log.Printf("Capturing packets for %d seconds...", timeout)
+	time.Sleep(time.Duration(timeout) * time.Second)
 
 	// Step 4: Get trace results
-	traceCmd = fmt.Sprintf("show trace max %d", count)
-	log.Printf("Retrieving trace results...")
-	result, err := ExecutePodVPPCommand(ctx, input.PodName, traceCmd)
+	showTraceCmd := fmt.Sprintf("show trace max %d", count)
+	result, err := ExecutePodVPPCommand(ctx, input.PodName, showTraceCmd)
 	if err != nil {
+		_, _ = ExecutePodVPPCommand(ctx, input.PodName, "clear trace")
 		return &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
@@ -939,8 +1088,14 @@ func (s *VPPMCPServer) handleTraceCapture(ctx context.Context, input VPPCaptureI
 		response := &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
-					Text: fmt.Sprintf("VPP Trace Capture Results:\n\n%s\n\nCapture Parameters:\n- VPP Input Node: %s\n- Count: %d\n- Capture Duration: 30 seconds\n- Pod: %s\n\n**Important**: Trace is not saved to any file\n\n",
-						output, vppInputNode, count, input.PodName),
+					Text: fmt.Sprintf("VPP Trace Capture Results:\n\n%s\n\n"+
+						"Capture Parameters:\n"+
+						"- VPP Input Node: %s\n"+
+						"- Packet Count: %d\n"+
+						"- Capture Duration: %d seconds\n"+
+						"- Pod: %s\n\n"+
+						"**Note**: Trace output is returned directly (not saved to file)",
+						output, vppInputNode, count, timeout, input.PodName),
 				},
 			},
 		}
@@ -957,7 +1112,7 @@ func (s *VPPMCPServer) handleTraceCapture(ctx context.Context, input VPPCaptureI
 	}, nil, nil
 }
 
-// handlePcapCapture implements VPP pcap capture
+// handlePcapCapture implements VPP pcap capture with locking
 func (s *VPPMCPServer) handlePcapCapture(ctx context.Context, input VPPCaptureInput) (*mcp.CallToolResult, any, error) {
 	log.Printf("Received pcap capture request for pod: %s", input.PodName)
 
@@ -970,6 +1125,47 @@ func (s *VPPMCPServer) handlePcapCapture(ctx context.Context, input VPPCaptureIn
 			},
 		}, nil, fmt.Errorf("PodName is required")
 	}
+
+	// Acquire in-process lock
+	captureMutex.Lock()
+	defer captureMutex.Unlock()
+
+	// Check for existing capture lock
+	lockInfo, err := checkCaptureLock(ctx, input.PodName)
+	if err != nil {
+		log.Printf("Warning: Failed to check capture lock: %v", err)
+	}
+	if lockInfo != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error: A capture operation is already running.\n\n"+
+						"Active capture details:\n"+
+						"- Operation: %s\n"+
+						"- Type: %s\n"+
+						"- Started: %s\n"+
+						"- Started by: %s\n"+
+						"- Pod: %s\n\n"+
+						"Use 'vpp_capture_cleanup' to force cleanup if the previous operation failed.",
+						lockInfo.Operation, lockInfo.CaptureType,
+						lockInfo.StartedAt.Format("2006-01-02 15:04:05"),
+						lockInfo.Hostname, lockInfo.PodName),
+				},
+			},
+		}, nil, fmt.Errorf("capture already in progress")
+	}
+
+	// Create capture lock
+	if err := createCaptureLock(ctx, input.PodName, "pcap", "packet_capture"); err != nil {
+		log.Printf("Warning: Failed to create capture lock: %v", err)
+	}
+
+	// Ensure cleanup on exit
+	defer func() {
+		if err := removeCaptureLock(ctx, input.PodName); err != nil {
+			log.Printf("Warning: Failed to remove capture lock: %v", err)
+		}
+	}()
 
 	// Get list of available interfaces
 	interfaceResult, err := ExecutePodVPPCommand(ctx, input.PodName, "show int")
@@ -985,23 +1181,12 @@ func (s *VPPMCPServer) handlePcapCapture(ctx context.Context, input VPPCaptureIn
 
 	// Parse interfaces
 	availableInterfaces := parseVppInterfaces(interfaceResult["output"].(string))
-	if len(availableInterfaces) == 0 {
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{
-				&mcp.TextContent{
-					Text: "Error: No up interfaces found in VPP",
-				},
-			},
-		}, nil, fmt.Errorf("no up interfaces found")
-	}
 
 	// Validate interface if provided
 	interfaceName := input.Interface
 	if interfaceName == "" {
-		// Default to 'any' interface
 		interfaceName = "any"
 	} else if interfaceName != "any" {
-		// Validate provided interface (skip validation for 'any' since it's special)
 		found := false
 		for _, iface := range availableInterfaces {
 			if iface == interfaceName {
@@ -1011,33 +1196,37 @@ func (s *VPPMCPServer) handlePcapCapture(ctx context.Context, input VPPCaptureIn
 		}
 		if !found {
 			var ifaceList strings.Builder
-			ifaceList.WriteString("\nAvailable interfaces:")
+			ifaceList.WriteString("\nAvailable UP interfaces:")
 			for i, iface := range availableInterfaces {
 				ifaceList.WriteString(fmt.Sprintf("\n%d. %s", i+1, iface))
 			}
 			return &mcp.CallToolResult{
 				Content: []mcp.Content{
 					&mcp.TextContent{
-						Text: fmt.Sprintf("Error: Interface '%s' not found.%s", interfaceName, ifaceList.String()),
+						Text: fmt.Sprintf("Error: Interface '%s' not found or is down.%s", interfaceName, ifaceList.String()),
 					},
 				},
 			}, nil, fmt.Errorf("interface not found")
 		}
 	}
 
-	// Determine count (default 500 if not specified)
+	// Determine count and timeout
 	count := input.Count
 	if count == 0 {
 		count = 500
 	}
+	timeout := input.Timeout
+	if timeout == 0 {
+		timeout = 30
+	}
+
+	log.Printf("Starting pcap capture on pod %s (count=%d, timeout=%ds, interface=%s)", input.PodName, count, timeout, interfaceName)
 
 	// Step 1: Stop any existing pcap capture
-	log.Printf("Stopping any existing pcap capture on pod %s", input.PodName)
 	_, _ = ExecutePodVPPCommand(ctx, input.PodName, "pcap trace off")
 
 	// Step 2: Start pcap capture
 	pcapCmd := fmt.Sprintf("pcap trace tx rx max %d intfc %s file trace.pcap", count, interfaceName)
-	log.Printf("Starting pcap: %s", pcapCmd)
 	_, err = ExecutePodVPPCommand(ctx, input.PodName, pcapCmd)
 	if err != nil {
 		return &mcp.CallToolResult{
@@ -1049,12 +1238,11 @@ func (s *VPPMCPServer) handlePcapCapture(ctx context.Context, input VPPCaptureIn
 		}, nil, err
 	}
 
-	// Step 3: Wait for capture (30 seconds or until count is reached)
-	log.Printf("Capturing packets for 30 seconds or until %d packets captured...", count)
-	time.Sleep(30 * time.Second)
+	// Step 3: Wait for capture
+	log.Printf("Capturing packets for %d seconds...", timeout)
+	time.Sleep(time.Duration(timeout) * time.Second)
 
 	// Step 4: Stop pcap capture
-	log.Printf("Stopping pcap capture...")
 	result, err := ExecutePodVPPCommand(ctx, input.PodName, "pcap trace off")
 	if err != nil {
 		return &mcp.CallToolResult{
@@ -1071,8 +1259,15 @@ func (s *VPPMCPServer) handlePcapCapture(ctx context.Context, input VPPCaptureIn
 		response := &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
-					Text: fmt.Sprintf("VPP PCAP Capture Results:\n\n%s\n\nCapture Parameters:\n- Interface: %s\n- Count: %d\n- Capture Duration: 30 seconds\n- Pod: %s\n\n**Important**: PCAP file saved at /tmp/trace.pcap\n\n",
-						output, interfaceName, count, input.PodName),
+					Text: fmt.Sprintf("VPP PCAP Capture Results:\n\n%s\n\n"+
+						"Capture Parameters:\n"+
+						"- Interface: %s\n"+
+						"- Packet Count: %d\n"+
+						"- Capture Duration: %d seconds\n"+
+						"- Pod: %s\n\n"+
+						"**PCAP file saved at**: /tmp/trace.pcap\n\n"+
+						"To retrieve: kubectl cp calico-vpp-dataplane/%s:/tmp/trace.pcap ./capture.pcap -c vpp",
+						output, interfaceName, count, timeout, input.PodName, input.PodName),
 				},
 			},
 		}
@@ -1089,7 +1284,7 @@ func (s *VPPMCPServer) handlePcapCapture(ctx context.Context, input VPPCaptureIn
 	}, nil, nil
 }
 
-// handleDispatchCapture implements VPP dispatch trace capture
+// handleDispatchCapture implements VPP dispatch trace capture with locking
 func (s *VPPMCPServer) handleDispatchCapture(ctx context.Context, input VPPCaptureInput) (*mcp.CallToolResult, any, error) {
 	log.Printf("Received dispatch capture request for pod: %s", input.PodName)
 
@@ -1102,6 +1297,47 @@ func (s *VPPMCPServer) handleDispatchCapture(ctx context.Context, input VPPCaptu
 			},
 		}, nil, fmt.Errorf("PodName is required")
 	}
+
+	// Acquire in-process lock
+	captureMutex.Lock()
+	defer captureMutex.Unlock()
+
+	// Check for existing capture lock
+	lockInfo, err := checkCaptureLock(ctx, input.PodName)
+	if err != nil {
+		log.Printf("Warning: Failed to check capture lock: %v", err)
+	}
+	if lockInfo != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error: A capture operation is already running.\n\n"+
+						"Active capture details:\n"+
+						"- Operation: %s\n"+
+						"- Type: %s\n"+
+						"- Started: %s\n"+
+						"- Started by: %s\n"+
+						"- Pod: %s\n\n"+
+						"Use 'vpp_capture_cleanup' to force cleanup if the previous operation failed.",
+						lockInfo.Operation, lockInfo.CaptureType,
+						lockInfo.StartedAt.Format("2006-01-02 15:04:05"),
+						lockInfo.Hostname, lockInfo.PodName),
+				},
+			},
+		}, nil, fmt.Errorf("capture already in progress")
+	}
+
+	// Create capture lock
+	if err := createCaptureLock(ctx, input.PodName, "dispatch", "dispatch_trace"); err != nil {
+		log.Printf("Warning: Failed to create capture lock: %v", err)
+	}
+
+	// Ensure cleanup on exit
+	defer func() {
+		if err := removeCaptureLock(ctx, input.PodName); err != nil {
+			log.Printf("Warning: Failed to remove capture lock: %v", err)
+		}
+	}()
 
 	// Initialize Kubernetes client for validation
 	k8sClient, err := newKubeClient()
@@ -1127,19 +1363,23 @@ func (s *VPPMCPServer) handleDispatchCapture(ctx context.Context, input VPPCaptu
 		}, nil, err
 	}
 
-	// Determine count (default 500 if not specified)
+	// Determine count and timeout
 	count := input.Count
 	if count == 0 {
 		count = 500
 	}
+	timeout := input.Timeout
+	if timeout == 0 {
+		timeout = 30
+	}
+
+	log.Printf("Starting dispatch capture on pod %s (count=%d, timeout=%ds, node=%s)", input.PodName, count, timeout, vppInputNode)
 
 	// Step 1: Stop any existing dispatch trace
-	log.Printf("Stopping any existing dispatch trace on pod %s", input.PodName)
 	_, _ = ExecutePodVPPCommand(ctx, input.PodName, "pcap dispatch trace off")
 
 	// Step 2: Start dispatch trace capture
-	dispatchCmd := fmt.Sprintf("pcap dispatch trace on max %d buffer-trace %s %d", count, vppInputNode, count)
-	log.Printf("Starting dispatch trace: %s", dispatchCmd)
+	dispatchCmd := fmt.Sprintf("pcap dispatch trace on max %d buffer-trace %s %d file dispatch.pcap", count, vppInputNode, count)
 	_, err = ExecutePodVPPCommand(ctx, input.PodName, dispatchCmd)
 	if err != nil {
 		return &mcp.CallToolResult{
@@ -1151,12 +1391,11 @@ func (s *VPPMCPServer) handleDispatchCapture(ctx context.Context, input VPPCaptu
 		}, nil, err
 	}
 
-	// Step 3: Wait for capture (30 seconds or until count is reached)
-	log.Printf("Capturing packets for 30 seconds or until %d packets captured...", count)
-	time.Sleep(30 * time.Second)
+	// Step 3: Wait for capture
+	log.Printf("Capturing packets for %d seconds...", timeout)
+	time.Sleep(time.Duration(timeout) * time.Second)
 
 	// Step 4: Stop dispatch trace
-	log.Printf("Stopping dispatch trace...")
 	result, err := ExecutePodVPPCommand(ctx, input.PodName, "pcap dispatch trace off")
 	if err != nil {
 		return &mcp.CallToolResult{
@@ -1173,8 +1412,15 @@ func (s *VPPMCPServer) handleDispatchCapture(ctx context.Context, input VPPCaptu
 		response := &mcp.CallToolResult{
 			Content: []mcp.Content{
 				&mcp.TextContent{
-					Text: fmt.Sprintf("VPP Dispatch Trace Results:\n\n%s\n\nCapture Parameters:\n- VPP Input Node: %s\n- Count: %d\n- Capture Duration: 30 seconds\n- Pod: %s\n\n**Important**: Dispatch PCAP file saved at /tmp/dispatch.pcap\n\n",
-						output, vppInputNode, count, input.PodName),
+					Text: fmt.Sprintf("VPP Dispatch Trace Results:\n\n%s\n\n"+
+						"Capture Parameters:\n"+
+						"- VPP Input Node: %s\n"+
+						"- Packet Count: %d\n"+
+						"- Capture Duration: %d seconds\n"+
+						"- Pod: %s\n\n"+
+						"**Dispatch PCAP file saved at**: /tmp/dispatch.pcap\n\n"+
+						"To retrieve: kubectl cp calico-vpp-dataplane/%s:/tmp/dispatch.pcap ./dispatch.pcap -c vpp",
+						output, vppInputNode, count, timeout, input.PodName, input.PodName),
 				},
 			},
 		}
@@ -1189,6 +1435,77 @@ func (s *VPPMCPServer) handleDispatchCapture(ctx context.Context, input VPPCaptu
 			},
 		},
 	}, nil, nil
+}
+
+// handleCaptureCleanup performs forced cleanup of all capture operations
+func (s *VPPMCPServer) handleCaptureCleanup(ctx context.Context, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+	log.Printf("Received capture cleanup request for pod: %s", input.PodName)
+
+	if input.PodName == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "Error: PodName is required. Please specify the Kubernetes pod name running VPP.",
+				},
+			},
+		}, nil, fmt.Errorf("PodName is required")
+	}
+
+	var results []string
+
+	// Stop all captures
+	log.Printf("Stopping all captures on pod %s", input.PodName)
+
+	// Clear trace
+	_, err := ExecutePodVPPCommand(ctx, input.PodName, "clear trace")
+	if err != nil {
+		results = append(results, fmt.Sprintf("- Clear trace: FAILED (%v)", err))
+	} else {
+		results = append(results, "- Clear trace: OK")
+	}
+
+	// Stop PCAP
+	_, err = ExecutePodVPPCommand(ctx, input.PodName, "pcap trace off")
+	if err != nil {
+		results = append(results, fmt.Sprintf("- Stop PCAP trace: FAILED (%v)", err))
+	} else {
+		results = append(results, "- Stop PCAP trace: OK")
+	}
+
+	// Stop dispatch trace
+	_, err = ExecutePodVPPCommand(ctx, input.PodName, "pcap dispatch trace off")
+	if err != nil {
+		results = append(results, fmt.Sprintf("- Stop dispatch trace: FAILED (%v)", err))
+	} else {
+		results = append(results, "- Stop dispatch trace: OK")
+	}
+
+	// Clean up capture files
+	err = cleanupCaptureFiles(ctx, input.PodName)
+	if err != nil {
+		results = append(results, fmt.Sprintf("- Clean up capture files: FAILED (%v)", err))
+	} else {
+		results = append(results, "- Clean up capture files: OK")
+	}
+
+	// Remove lock file
+	err = removeCaptureLock(ctx, input.PodName)
+	if err != nil {
+		results = append(results, fmt.Sprintf("- Remove lock file: FAILED (%v)", err))
+	} else {
+		results = append(results, "- Remove lock file: OK")
+	}
+
+	response := &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: fmt.Sprintf("VPP Capture Cleanup Results:\n\nPod: %s\n\nCleanup Actions:\n%s\n\n"+
+					"The system is now ready for new capture operations.",
+					input.PodName, strings.Join(results, "\n")),
+			},
+		},
+	}
+	return response, nil, nil
 }
 
 func main() {
@@ -1320,16 +1637,14 @@ func main() {
 	toolTrace := &mcp.Tool{
 		Name: "vpp_trace",
 		Description: "Capture VPP packet traces by running 'vppctl trace add' in a Kubernetes VPP container\n\n" +
+			"**Note**: Uses locking to prevent parallel capture operations. Use vpp_capture_cleanup to force cleanup.\n\n" +
 			"Required parameters:\n" +
 			"- pod_name: The name of the Kubernetes pod running VPP\n\n" +
 			"Optional parameters:\n" +
 			"- count: Number of packets to capture (default: 500)\n" +
+			"- timeout: Capture duration in seconds (default: 30)\n" +
 			"- interface: Interface type - phy|af_xdp|af_packet|avf|vmxnet3|virtio|rdma|dpdk|memif|vcl (default: virtio)\n\n" +
-			"The tool will:\n" +
-			"1. Clear existing traces\n" +
-			"2. Start packet capture\n" +
-			"3. Wait 30 seconds or until count is reached\n" +
-			"4. Display captured traces",
+			"The tool will: Clear traces → Start capture → Wait → Return traces → Cleanup",
 	}
 	mcp.AddTool(vppServer.server, toolTrace, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCaptureInput) (*mcp.CallToolResult, any, error) {
 		return vppServer.handleTraceCapture(ctx, input)
@@ -1339,17 +1654,14 @@ func main() {
 	toolPcap := &mcp.Tool{
 		Name: "vpp_pcap",
 		Description: "Capture VPP packets to pcap file by running 'vppctl pcap trace' in a Kubernetes VPP container\n\n" +
+			"**Note**: Uses locking to prevent parallel capture operations. Use vpp_capture_cleanup to force cleanup.\n\n" +
 			"Required parameters:\n" +
 			"- pod_name: The name of the Kubernetes pod running VPP\n\n" +
 			"Optional parameters:\n" +
 			"- count: Number of packets to capture (default: 500)\n" +
-			"- interface: Interface name (e.g., host-eth0) or 'any' (default: first available interface)\n\n" +
-			"The tool will:\n" +
-			"1. Validate the interface exists\n" +
-			"2. Start pcap capture on tx/rx\n" +
-			"3. Wait 30 seconds or until count is reached\n" +
-			"4. Stop capture and save to /tmp/vpp-capture-<timestamp>.pcap\n" +
-			"5. Display capture status",
+			"- timeout: Capture duration in seconds (default: 30)\n" +
+			"- interface: Interface name (e.g., host-eth0) or 'any' (default: any)\n\n" +
+			"The tool will: Validate interface → Start pcap → Wait → Stop → Save to /tmp/trace.pcap",
 	}
 	mcp.AddTool(vppServer.server, toolPcap, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCaptureInput) (*mcp.CallToolResult, any, error) {
 		return vppServer.handlePcapCapture(ctx, input)
@@ -1359,19 +1671,33 @@ func main() {
 	toolDispatch := &mcp.Tool{
 		Name: "vpp_dispatch",
 		Description: "Capture VPP dispatch trace to pcap file by running 'vppctl pcap dispatch trace' in a Kubernetes VPP container\n\n" +
+			"**Note**: Uses locking to prevent parallel capture operations. Use vpp_capture_cleanup to force cleanup.\n\n" +
 			"Required parameters:\n" +
 			"- pod_name: The name of the Kubernetes pod running VPP\n\n" +
 			"Optional parameters:\n" +
 			"- count: Number of packets to capture (default: 500)\n" +
+			"- timeout: Capture duration in seconds (default: 30)\n" +
 			"- interface: Interface type - phy|af_xdp|af_packet|avf|vmxnet3|virtio|rdma|dpdk|memif|vcl (default: virtio)\n\n" +
-			"The tool will:\n" +
-			"1. Start dispatch trace with buffer trace\n" +
-			"2. Wait 30 seconds or until count is reached\n" +
-			"3. Stop capture and save to /tmp/vpp-dispatch-<timestamp>.pcap\n" +
-			"4. Display capture status",
+			"The tool will: Start dispatch trace → Wait → Stop → Save to /tmp/dispatch.pcap",
 	}
 	mcp.AddTool(vppServer.server, toolDispatch, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCaptureInput) (*mcp.CallToolResult, any, error) {
 		return vppServer.handleDispatchCapture(ctx, input)
+	})
+
+	// Define vpp_capture_cleanup tool
+	toolCaptureCleanup := &mcp.Tool{
+		Name: "vpp_capture_cleanup",
+		Description: "Force cleanup of all VPP capture operations (trace, pcap, dispatch)\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP\n\n" +
+			"Use this tool to:\n" +
+			"- Stop all active captures\n" +
+			"- Remove capture lock files\n" +
+			"- Clean up temporary capture files\n" +
+			"- Restore system to clean state after a failed capture",
+	}
+	mcp.AddTool(vppServer.server, toolCaptureCleanup, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleCaptureCleanup(ctx, input)
 	})
 
 	// Define vpp_get_pods tool
