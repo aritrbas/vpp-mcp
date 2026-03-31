@@ -3,12 +3,14 @@
 ## Current Branch Status
 
 - MCP server starts in `stdio` and `http` modes.
-- Tool inventory is **42 tools** total:
+- Tool inventory is **44 tools** total:
   - **35 VPP tools**
-  - **7 BGP tools**
+  - **9 BGP tools**
 - Includes Kubernetes health-check support tools:
   - `vpp_get_pods`
   - `vpp_show_daemonset_image`
+  - `bgp_cluster_show_neighbors`
+  - `bgp_get_agent_logs`
 
 ## Verification Commands
 
@@ -28,6 +30,8 @@ make build
 ./tests/test_tool.sh <pod-name> vpp_show_version
 ./tests/test_tool.sh vpp_get_pods
 ./tests/test_tool.sh vpp_show_daemonset_image
+./tests/test_tool.sh bgp_cluster_show_neighbors
+./tests/test_tool.sh <pod-name> bgp_get_agent_logs
 
 # Full demo pass across all tools
 ./tests/demo_test.sh <pod-name>
