@@ -47,19 +47,27 @@ echo -e "${YELLOW}Step 2: Listing available tools...${NC}"
 echo ""
 
 # Test 2: List tools using JSON-RPC
-(
-    # Send initialize request
-    echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}'
-    sleep 0.5
-    # Send tools/list request
-    echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
-    sleep 0.5
-) | timeout 3s ./vpp-mcp-server 2>/dev/null | while IFS= read -r line; do
-    # Parse and display available tools
-    if echo "$line" | jq -e '.result.tools[]?' > /dev/null 2>&1; then
-        echo "$line" | jq -r '.result.tools[] | "  - \(.name): \(.description | split("\n")[0])"'
-    fi
-done
+TOOLS_RESULT=$(
+    (
+        # Send initialize request
+        echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}'
+        sleep 0.5
+        # Send tools/list request
+        echo '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}'
+        sleep 0.5
+    ) | timeout 3s ./vpp-mcp-server 2>/dev/null
+)
+
+TOOLS_JSON=$(echo "$TOOLS_RESULT" | jq -c 'select(.result.tools)' | head -n 1)
+if [ -n "$TOOLS_JSON" ]; then
+    TOOL_COUNT=$(echo "$TOOLS_JSON" | jq -r '.result.tools | length')
+    echo -e "${GREEN}✓ Found $TOOL_COUNT tools${NC}"
+    echo "$TOOLS_JSON" | jq -r '.result.tools[] | "  - \(.name): \(.description | split("\n")[0])"'
+else
+    echo -e "${RED}✗ Failed to list tools${NC}"
+    echo "$TOOLS_RESULT"
+    exit 1
+fi
 
 echo ""
 echo -e "${YELLOW}Step 3: Integration test methods...${NC}"

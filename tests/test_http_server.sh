@@ -8,6 +8,12 @@ set -e
 PORT=9090
 TIMEOUT=5
 
+# Colors for output
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
 echo ""
 echo "=================================="
 echo "VPP MCP Server Test HTTP Transport"
@@ -20,12 +26,6 @@ echo "This script will only verify whether the HTTP server is running correctly.
 echo "For full tool testing, use the stdio demo test script or a dedicated MCP client."
 echo ""
 echo -e "${YELLOW}Starting VPP MCP Server on port $PORT...${NC}"
-
-# Colors for output
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
 
 # Check if the server binary exists
 if [ ! -f "./vpp-mcp-server" ]; then
@@ -69,7 +69,7 @@ fi
 
 # Cleanup
 echo ""
-echo -e "${YELLOW}Step 3: Cleanup...${NC}"
+echo -e "${YELLOW}Step 2: Cleanup...${NC}"
 echo "Stopping server (PID: $SERVER_PID)..."
 kill $SERVER_PID 2>/dev/null
 wait $SERVER_PID 2>/dev/null

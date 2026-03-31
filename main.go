@@ -244,6 +244,16 @@ type BGPParameterCommandInput struct {
 // EmptyInput represents tools that don't require any input parameters
 type EmptyInput struct{}
 
+// VPPDaemonsetImageInput represents input parameters for daemonset image lookup
+type VPPDaemonsetImageInput struct {
+	// Namespace specifies the Kubernetes namespace (default: calico-vpp-dataplane)
+	Namespace string `json:"namespace,omitempty"`
+	// DaemonsetName specifies the daemonset name (default: calico-vpp-node)
+	DaemonsetName string `json:"daemonset_name,omitempty"`
+	// ContainerName specifies the container name in the daemonset pod spec (default: vpp)
+	ContainerName string `json:"container_name,omitempty"`
+}
+
 // =============================================================================
 // VPP COMMAND EXECUTION - SUPPORTS BOTH KUBERNETES AND STANDALONE MODES
 // =============================================================================
@@ -1899,6 +1909,87 @@ func (s *VPPMCPServer) handleGetPods(ctx context.Context, input EmptyInput) (*mc
 	return response, nil, nil
 }
 
+// handleShowDaemonsetImage returns the image configured for a container in a daemonset
+func (s *VPPMCPServer) handleShowDaemonsetImage(ctx context.Context, input VPPDaemonsetImageInput) (*mcp.CallToolResult, any, error) {
+	inputJSON, _ := json.Marshal(input)
+	log.Printf("Received vpp_show_daemonset_image request: %s", string(inputJSON))
+
+	namespace := strings.TrimSpace(input.Namespace)
+	if namespace == "" {
+		namespace = "calico-vpp-dataplane"
+	}
+	daemonsetName := strings.TrimSpace(input.DaemonsetName)
+	if daemonsetName == "" {
+		daemonsetName = "calico-vpp-node"
+	}
+	containerName := strings.TrimSpace(input.ContainerName)
+	if containerName == "" {
+		containerName = "vpp"
+	}
+
+	jsonPath := fmt.Sprintf(`{.spec.template.spec.containers[?(@.name=="%s")].image}`, containerName)
+	cmdArgs := []string{
+		"get", "daemonset",
+		"-n", namespace,
+		daemonsetName,
+		"-o", "jsonpath=" + jsonPath,
+	}
+
+	log.Printf("Executing command: kubectl %s", strings.Join(cmdArgs, " "))
+
+	cmdCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(cmdCtx, "kubectl", cmdArgs...)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	execErr := cmd.Run()
+	output := strings.TrimSpace(stdout.String())
+	errOutput := strings.TrimSpace(stderr.String())
+
+	if errOutput != "" {
+		log.Printf("Command stderr: %s", errOutput)
+	}
+
+	if execErr != nil {
+		errorMsg := errOutput
+		if errorMsg == "" {
+			errorMsg = execErr.Error()
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error executing kubectl command: %s\nCommand: kubectl %s",
+						errorMsg, strings.Join(cmdArgs, " ")),
+				},
+			},
+		}, nil, nil
+	}
+
+	if output == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("No image found for container '%s' in daemonset '%s' (namespace: %s).",
+						containerName, daemonsetName, namespace),
+				},
+			},
+		}, nil, nil
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: fmt.Sprintf("Daemonset image:\n\n%s\n\nNamespace: %s\nDaemonset: %s\nContainer: %s\nCommand executed: kubectl %s",
+					output, namespace, daemonsetName, containerName, strings.Join(cmdArgs, " ")),
+			},
+		},
+	}, nil, nil
+}
+
 // =============================================================================
 // BGP HANDLERS - KUBERNETES-ONLY, RUNS IN AGENT CONTAINER
 // =============================================================================
@@ -2384,6 +2475,43 @@ func main() {
 		return vppServer.handleVPPCommand(ctx, input, "show run", "VPP Runtime Statistics")
 	})
 
+	// Define vpp_show_ipip_tunnel tool
+	toolShowIpipTunnel := &mcp.Tool{
+		Name: "vpp_show_ipip_tunnel",
+		Description: "Display IPIP tunnel status by running 'vppctl show ipip tunnel'" + modeDesc +
+			"\n\nThis command shows IPIP tunnel configuration and status including:\n" +
+			"- Tunnel instance number\n" +
+			"- Source and destination IP addresses\n" +
+			"- Table ID and software interface index\n" +
+			"- Tunnel flags and DSCP settings\n\n" +
+			"Parameters:\n" +
+			"- pod_name: (Kubernetes mode) The name of the Kubernetes pod running VPP\n" +
+			"- mode: (optional) 'kubernetes' or 'standalone'\n" +
+			"- sock_path: (Standalone mode, optional) VPP socket path",
+	}
+	mcp.AddTool(vppServer.server, toolShowIpipTunnel, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "show ipip tunnel", "VPP IPIP Tunnel Status")
+	})
+
+	// Define vpp_show_vxlan_tunnel tool
+	toolShowVxlanTunnel := &mcp.Tool{
+		Name: "vpp_show_vxlan_tunnel",
+		Description: "Display VXLAN tunnel status by running 'vppctl show vxlan tunnel'" + modeDesc +
+			"\n\nThis command shows VXLAN tunnel configuration and status including:\n" +
+			"- Tunnel instance number\n" +
+			"- Source and destination IPv6 addresses\n" +
+			"- Source/destination ports and VNI\n" +
+			"- FIB index, software interface index\n" +
+			"- Encap/decap indices\n\n" +
+			"Parameters:\n" +
+			"- pod_name: (Kubernetes mode) The name of the Kubernetes pod running VPP\n" +
+			"- mode: (optional) 'kubernetes' or 'standalone'\n" +
+			"- sock_path: (Standalone mode, optional) VPP socket path",
+	}
+	mcp.AddTool(vppServer.server, toolShowVxlanTunnel, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "show vxlan tunnel", "VPP VXLAN Tunnel Status")
+	})
+
 	// Define vpp_show_tun_all tool
 	toolShowTunAll := &mcp.Tool{
 		Name: "vpp_show_tun_all",
@@ -2594,6 +2722,21 @@ func main() {
 	}
 	mcp.AddTool(vppServer.server, toolGetPods, func(ctx context.Context, req *mcp.CallToolRequest, input EmptyInput) (*mcp.CallToolResult, any, error) {
 		return vppServer.handleGetPods(ctx, input)
+	})
+
+	// Define vpp_show_daemonset_image tool
+	toolShowDaemonsetImage := &mcp.Tool{
+		Name: "vpp_show_daemonset_image",
+		Description: "Show the image configured for a daemonset container (defaults match CalicoVPP: namespace=calico-vpp-dataplane, daemonset=calico-vpp-node, container=vpp).\n\n" +
+			"This tool runs the equivalent of:\n" +
+			"kubectl get daemonset -n <namespace> <daemonset_name> -o jsonpath='{.spec.template.spec.containers[?(@.name==\"<container_name>\")].image}'\n\n" +
+			"Optional parameters:\n" +
+			"- namespace: Kubernetes namespace (default: calico-vpp-dataplane)\n" +
+			"- daemonset_name: Daemonset name (default: calico-vpp-node)\n" +
+			"- container_name: Container name in daemonset spec (default: vpp)",
+	}
+	mcp.AddTool(vppServer.server, toolShowDaemonsetImage, func(ctx context.Context, req *mcp.CallToolRequest, input VPPDaemonsetImageInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleShowDaemonsetImage(ctx, input)
 	})
 
 	// =========================================================================

@@ -1,17 +1,32 @@
 #!/bin/bash
 
 # Quick tool testing script for VPP MCP Server
-# Usage: ./test_tool.sh <pod_name> <tool_name> [parameter1] [parameter2]
+# Usage (most tools): ./test_tool.sh <pod_name> <tool_name> [parameter1] [parameter2] [parameter3]
+# Usage (no-pod tools): ./test_tool.sh <tool_name> [parameter1] [parameter2] [parameter3]
 
-POD_NAME="$1"
-TOOL_NAME="$2"
-PARAMETER1="$3"
-PARAMETER2="$4"
+NO_POD_TOOLS_REGEX='^(vpp_get_pods|vpp_show_daemonset_image)$'
 
-if [ -z "$POD_NAME" ] || [ -z "$TOOL_NAME" ]; then
-    echo "Usage: $0 <pod_name> <tool_name> [parameter1] [parameter2]"
+if [[ "$1" =~ $NO_POD_TOOLS_REGEX ]]; then
+    POD_NAME=""
+    TOOL_NAME="$1"
+    PARAMETER1="$2"
+    PARAMETER2="$3"
+    PARAMETER3="$4"
+else
+    POD_NAME="$1"
+    TOOL_NAME="$2"
+    PARAMETER1="$3"
+    PARAMETER2="$4"
+    PARAMETER3="$5"
+fi
+
+if [ -z "$TOOL_NAME" ] || { [ -z "$POD_NAME" ] && ! [[ "$TOOL_NAME" =~ $NO_POD_TOOLS_REGEX ]]; }; then
+    echo "Usage (most tools): $0 <pod_name> <tool_name> [parameter1] [parameter2] [parameter3]"
+    echo "Usage (no-pod tools): $0 <tool_name> [parameter1] [parameter2] [parameter3]"
     echo ""
     echo "Most tools only need pod_name. Some have optional/required parameters:"
+    echo "- vpp_get_pods: no pod_name needed"
+    echo "- vpp_show_daemonset_image: optional namespace, daemonset_name, container_name"
     echo "- vpp_show_ip_fib: optional fib_index (default: 0)"
     echo "- vpp_show_ip6_fib: optional fib_index (default: 0)"
     echo "- vpp_show_ip_fib_prefix: optional 'fib_index prefix' (default: '0 10.0.0.0/24')"
@@ -20,6 +35,7 @@ if [ -z "$POD_NAME" ] || [ -z "$TOOL_NAME" ]; then
     echo "- vpp_pcap: optional 'count interface' (default: 1000 any)"
     echo "- vpp_dispatch: optional 'count interface' (default: 1000 af-packet)"
     echo "- vpp_capture_cleanup: no extra parameters needed"
+    echo "- vpp_show_hardware_interface: required interface_name (e.g., host-eth0)"
     echo "- vpp_show_tun_interface: required interface_name (e.g., tun1)"
     echo "- bgp_show_ip: optional IP (default: 11.0.0.7)"
     echo "- bgp_show_prefix: optional prefix (default: 11.0.0.0/8)"
@@ -30,6 +46,7 @@ if [ -z "$POD_NAME" ] || [ -z "$TOOL_NAME" ]; then
     echo "  - vpp_show_int"
     echo "  - vpp_show_int_addr"
     echo "  - vpp_show_hardware_interfaces"
+    echo "  - vpp_show_hardware_interface"
     echo "  - vpp_show_errors"
     echo "  - vpp_show_session_verbose"
     echo "  - vpp_show_npol_rules"
@@ -49,6 +66,8 @@ if [ -z "$POD_NAME" ] || [ -z "$TOOL_NAME" ]; then
     echo "  - vpp_show_cnat_session"
     echo "  - vpp_clear_run"
     echo "  - vpp_show_run"
+    echo "  - vpp_show_ipip_tunnel"
+    echo "  - vpp_show_vxlan_tunnel"
     echo "  - vpp_show_tun_all"
     echo "  - vpp_show_tun_interface"
     echo "  - vpp_show_ip_table"
@@ -57,6 +76,7 @@ if [ -z "$POD_NAME" ] || [ -z "$TOOL_NAME" ]; then
     echo "  - vpp_show_ip6_fib"
     echo "  - vpp_show_ip_fib_prefix"
     echo "  - vpp_show_ip6_fib_prefix"
+    echo "  - vpp_show_daemonset_image"
     echo "  - bgp_show_neighbors"
     echo "  - bgp_show_global_info"
     echo "  - bgp_show_global_rib4"
@@ -67,13 +87,20 @@ if [ -z "$POD_NAME" ] || [ -z "$TOOL_NAME" ]; then
     exit 1
 fi
 
-echo "Pod: $POD_NAME"
+if [ -n "$POD_NAME" ]; then
+    echo "Pod: $POD_NAME"
+else
+    echo "Pod: (not required for this tool)"
+fi
 echo "Tool: $TOOL_NAME"
 if [ -n "$PARAMETER1" ]; then
     echo "Parameter 1: $PARAMETER1"
 fi
 if [ -n "$PARAMETER2" ]; then
     echo "Parameter 2: $PARAMETER2"
+fi
+if [ -n "$PARAMETER3" ]; then
+    echo "Parameter 3: $PARAMETER3"
 fi
 echo ""
 
@@ -87,6 +114,26 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 if [ "$TOOL_NAME" = "vpp_get_pods" ]; then
     # vpp_get_pods doesn't need a pod_name
     echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":{}}}' >> "$TEMP_REQUESTS"
+elif [ "$TOOL_NAME" = "vpp_show_daemonset_image" ]; then
+    # vpp_show_daemonset_image doesn't require a pod_name
+    ARGUMENTS="{}"
+    if [ -n "$PARAMETER1" ] || [ -n "$PARAMETER2" ] || [ -n "$PARAMETER3" ]; then
+        ARGUMENTS="{"
+        SEP=""
+        if [ -n "$PARAMETER1" ]; then
+            ARGUMENTS="${ARGUMENTS}\"namespace\":\"$PARAMETER1\""
+            SEP=","
+        fi
+        if [ -n "$PARAMETER2" ]; then
+            ARGUMENTS="${ARGUMENTS}${SEP}\"daemonset_name\":\"$PARAMETER2\""
+            SEP=","
+        fi
+        if [ -n "$PARAMETER3" ]; then
+            ARGUMENTS="${ARGUMENTS}${SEP}\"container_name\":\"$PARAMETER3\""
+        fi
+        ARGUMENTS="${ARGUMENTS}}"
+    fi
+    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":'"$ARGUMENTS"'}}' >> "$TEMP_REQUESTS"
 elif [[ "$TOOL_NAME" =~ ^(bgp_show_ip|bgp_show_prefix|bgp_show_neighbor)$ ]]; then
     # BGP tools that need a parameter (use provided or defaults)
     if [ -n "$PARAMETER1" ]; then
@@ -131,9 +178,13 @@ elif [[ "$TOOL_NAME" =~ ^(vpp_show_ip_fib_prefix|vpp_show_ip6_fib_prefix)$ ]]; t
         fi
     fi
     echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":{"pod_name":"'$POD_NAME'","fib_index":"'$FIB_INDEX'","prefix":"'$PREFIX'"}}}' >> "$TEMP_REQUESTS"
-elif [ "$TOOL_NAME" = "vpp_show_tun_interface" ]; then
-    # Tunnel interface tool that needs interface_name
-    INTERFACE_NAME="${PARAMETER1:-tun1}"
+elif [[ "$TOOL_NAME" =~ ^(vpp_show_tun_interface|vpp_show_hardware_interface)$ ]]; then
+    # Interface-specific tools that need interface_name
+    if [ "$TOOL_NAME" = "vpp_show_tun_interface" ]; then
+        INTERFACE_NAME="${PARAMETER1:-tun1}"
+    else
+        INTERFACE_NAME="${PARAMETER1:-host-eth0}"
+    fi
     echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":{"pod_name":"'$POD_NAME'","interface_name":"'$INTERFACE_NAME'"}}}' >> "$TEMP_REQUESTS"
 elif [[ "$TOOL_NAME" =~ ^(vpp_trace|vpp_pcap|vpp_dispatch)$ ]]; then
     # Capture tools with optional count and interface
@@ -174,8 +225,20 @@ else
     TIMEOUT="5s"
 fi
 
-# Run the MCP server and capture all output
-timeout $TIMEOUT ./vpp-mcp-server < "$TEMP_REQUESTS" > "$TEMP_OUTPUT" 2>&1
+# Stream requests with short delays so initialize and tools/call are processed reliably
+{
+    while IFS= read -r request_line; do
+        echo "$request_line"
+        sleep 0.4
+    done < "$TEMP_REQUESTS"
+
+    # Keep stdin open long enough for command execution and response emission
+    if [[ "$TOOL_NAME" =~ ^(vpp_trace|vpp_pcap|vpp_dispatch)$ ]]; then
+        sleep 32
+    else
+        sleep 1.5
+    fi
+} | timeout $TIMEOUT ./vpp-mcp-server > "$TEMP_OUTPUT" 2>&1
 
 # First print non-JSON lines (logs)
 grep -v '^{' "$TEMP_OUTPUT" || true

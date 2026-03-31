@@ -39,7 +39,7 @@ fi
 echo "=========================================="
 echo "VPP MCP Server Demo"
 echo "=========================================="
-echo -e "${YELLOW}Testing all 37 MCP server tools against pod: ${GREEN}$POD_NAME${NC}"
+echo -e "${YELLOW}Testing all 42 MCP server tools against pod: ${GREEN}$POD_NAME${NC}"
 echo ""
 
 # Function to test a tool
@@ -53,13 +53,24 @@ test_tool() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
     # Send requests and capture only stdout (JSON)
-    if [ "$tool_name" = "vpp_get_pods" ]; then
-        # Special case for vpp_get_pods which doesn't take any arguments
+    if [[ "$tool_name" =~ ^(vpp_get_pods|vpp_show_daemonset_image)$ ]]; then
+        # Tools that don't require pod_name
         RESULT=$(
             (
                 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
                 sleep 0.3
                 echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{}}}";
+                sleep 1.5
+            ) | timeout 5s ./vpp-mcp-server 2>/dev/null
+        )
+    elif [[ "$tool_name" == "vpp_show_hardware_interface" ]]; then
+        # Specific hardware interface lookup requires interface_name
+        INTERFACE_NAME="host-eth0"
+        RESULT=$(
+            (
+                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
+                sleep 0.3
+                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\",\"interface_name\":\"$INTERFACE_NAME\"}}}";
                 sleep 1.5
             ) | timeout 5s ./vpp-mcp-server 2>/dev/null
         )
@@ -203,6 +214,7 @@ test_tool "vpp_show_version" "VPP Version"
 test_tool "vpp_show_int" "VPP Interfaces"
 test_tool "vpp_show_int_addr" "VPP Interface Address Information"
 test_tool "vpp_show_hardware_interfaces" "VPP Hardware Interface Information"
+test_tool "vpp_show_hardware_interface" "VPP Specific Hardware Interface (interface_name=host-eth0)"
 test_tool "vpp_show_errors" "VPP Error Counters"
 test_tool "vpp_show_session_verbose" "VPP Sessions (verbose)"
 test_tool "vpp_show_npol_rules" "VPP NPOL Rules"
@@ -222,6 +234,8 @@ test_tool "vpp_show_cnat_translation" "VPP CNAT Translation"
 test_tool "vpp_show_cnat_session" "VPP CNAT Session"
 test_tool "vpp_clear_run" "VPP Clear Runtime Stats"
 test_tool "vpp_show_run" "VPP Runtime Statistics"
+test_tool "vpp_show_ipip_tunnel" "VPP IPIP Tunnel Status"
+test_tool "vpp_show_vxlan_tunnel" "VPP VXLAN Tunnel Status"
 test_tool "vpp_show_tun_all" "VPP Tunnel Interfaces"
 test_tool "vpp_show_tun_interface" "VPP Specific Tunnel Interface (interface_name=tun1)"
 test_tool "vpp_show_ip_table" "VPP IPv4 VRF Tables"
@@ -230,6 +244,7 @@ test_tool "vpp_show_ip_fib" "VPP IPv4 FIB Table (fib_index=0)"
 test_tool "vpp_show_ip6_fib" "VPP IPv6 FIB Table (fib_index=0)"
 test_tool "vpp_show_ip_fib_prefix" "VPP IPv4 FIB Prefix (fib_index=0, prefix=10.0.0.0/24)"
 test_tool "vpp_show_ip6_fib_prefix" "VPP IPv6 FIB Prefix (fib_index=0, prefix=2001:db8::/32)"
+test_tool "vpp_show_daemonset_image" "Calico VPP Daemonset Image"
 test_tool "bgp_show_neighbors" "BGP Neighbors"
 test_tool "bgp_show_global_info" "BGP Global Information"
 test_tool "bgp_show_global_rib4" "BGP IPv4 RIB Information"
@@ -242,7 +257,7 @@ echo "=========================================="
 echo "✓ Demo completed!"
 echo "=========================================="
 echo ""
-echo "📊 All 37 tools tested successfully"
+echo "📊 All 42 tools tested successfully"
 echo "🎯 MCP server is working correctly"
 echo ""
 echo "Next steps:"
