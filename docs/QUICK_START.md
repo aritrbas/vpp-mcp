@@ -7,7 +7,7 @@
 ../tests/demo_test.sh calico-vpp-node-hnk97
 
 # Test one tool
-../tests/test_tool.sh vpp_show_int calico-vpp-node-hnk97
+../tests/test_tool.sh calico-vpp-node-hnk97 vpp_show_int
 ```
 
 ## Available Tools (37 Total)
@@ -53,7 +53,7 @@
 36. **bgp_show_prefix** - BGP RIB entry for prefix (requires prefix)
 37. **bgp_show_neighbor** - BGP neighbor details (requires neighbor IP)
 
-**Note**: All tools use namespace `calico-vpp-dataplane` and container `vpp` by default.
+**Note**: All VPP tools support dual execution modes: Kubernetes (default, uses namespace `calico-vpp-dataplane` and container `vpp`) and Standalone (set `mode="standalone"` for local VPP daemon). Capture and clear tools are **mutating** operations.
 
 ## Use with Claude Desktop
 

@@ -2,7 +2,7 @@
 
 ## ✅ All Tests Passed
 
-Your VPP MCP server has been successfully tested with 34 tools (27 VPP tools + 7 BGP tools).
+Your VPP MCP server has been successfully tested with 35 tools (28 VPP tools + 7 BGP tools).
 
 ## Test Results
 
@@ -20,6 +20,7 @@ Your VPP MCP server has been successfully tested with 34 tools (27 VPP tools + 7
 | `vpp_trace` | ✅ | `vppctl trace add` | Packet trace capture (default interface: 'virtio') |
 | `vpp_pcap` | ✅ | `vppctl pcap trace` | PCAP capture (default interface: 'any') |
 | `vpp_dispatch` | ✅ | `vppctl pcap dispatch trace` | Dispatch trace capture (default interface: 'virtio')|
+| `vpp_capture_cleanup` | ✅ | Stops all captures, removes locks/files | Force cleanup of all capture operations |
 | `vpp_get_pods` | ✅ | `kubectl get pods -n calico-vpp-dataplane -owide` | List all calico-vpp pods |
 | `vpp_clear_errors` | ✅ | `vppctl clear errors` | Reset error counters |
 | `vpp_tcp_stats` | ✅ | `vppctl show tcp stats` | TCP statistics |
@@ -62,7 +63,7 @@ cd ..
 cd ..
 ./tests/demo_test.sh <pod-name>
 ```
-- Tests 23 of 27 tools sequentially (4 require fib_index/prefix parameters)
+- Tests all 35 tools sequentially
 - Shows actual output from each tool
 - Confirms end-to-end functionality
 
@@ -70,12 +71,12 @@ cd ..
 ```bash
 # Run from project root
 cd ..
-./tests/test_tool.sh <tool-name> <pod-name> [namespace]
+./tests/test_tool.sh <pod-name> <tool-name> [param1] [param2]
 ```
 Examples:
 ```bash
-./tests/test_tool.sh vpp_show_int calico-vpp-node-hnk97
-./tests/test_tool.sh vpp_show_errors calico-vpp-node-hnk97
+./tests/test_tool.sh calico-vpp-node-hnk97 vpp_show_int
+./tests/test_tool.sh calico-vpp-node-hnk97 vpp_show_errors
 ```
 
 ### 4. Direct kubectl Testing
@@ -177,7 +178,7 @@ Count       Node                    Reason
 ## Test Files Location
 
 - ✅ `tests/test_mcp_server.sh` - Comprehensive test suite
-- ✅ `tests/demo_test.sh` - Demo 23 of 27 tools
+- ✅ `tests/demo_test.sh` - Demo all 35 tools
 - ✅ `tests/test_tool.sh` - Test individual tools
 - ✅ `tests/test_http_server.sh` - HTTP transport tests
 - ✅ `examples/example_mcp_requests.json` - JSON-RPC examples
@@ -192,10 +193,11 @@ Count       Node                    Reason
 
 ## Performance Notes
 
-- Average response time: < 1 second per tool
-- All commands are read-only (safe)
-- No VPP state modifications
-- kubectl permissions required
+- Average response time: < 1 second per tool (except capture tools which wait for packet collection)
+- Most commands are read-only (safe)
+- **Mutating tools**: `vpp_clear_errors`, `vpp_clear_run`, `vpp_trace`, `vpp_pcap`, `vpp_dispatch`, `vpp_capture_cleanup` modify VPP state or write files
+- Capture tools use locking to prevent parallel execution
+- kubectl permissions required for Kubernetes mode; vppctl socket access required for standalone mode
 
 ## Documentation
 

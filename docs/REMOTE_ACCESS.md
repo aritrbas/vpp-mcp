@@ -201,7 +201,7 @@ Run both machines on a VPN for encrypted communication:
 
 ## Example Usage
 
-Once connected, your agent on Machine Y can use all 34 VPP debugging tools:
+Once connected, your agent on Machine Y can use all 35 VPP debugging tools:
 
 ```javascript
 // Example: Get VPP version from remote pod

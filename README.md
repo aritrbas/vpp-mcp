@@ -1,14 +1,16 @@
 # VPP MCP Server (Go Implementation)
 
-A Model Context Protocol (MCP) server written in Go for debugging Vector Packet Processing (VPP) instances running in Kubernetes pods.
+A Model Context Protocol (MCP) server written in Go for debugging Vector Packet Processing (VPP) instances running in Kubernetes pods or as standalone daemons.
 
 ## Overview
 
-This MCP server provides tools to interact with VPP instances for debugging purposes. It executes VPP commands on Kubernetes pods and exposes VPP functionality through MCP tools that can be used by AI agents and other MCP clients.
+This MCP server provides tools to interact with VPP instances for debugging purposes. It supports dual execution modes: **Kubernetes** (CalicoVPP pods) and **Standalone** (local VPP daemon). It exposes VPP functionality through MCP tools that can be used by AI agents and other MCP clients.
 
 ## Features
 
-- **Kubernetes Integration**: Executes VPP commands on Kubernetes pods running VPP
+- **Dual Execution Modes**:
+  - **Kubernetes**: Executes VPP commands on Kubernetes pods running CalicoVPP
+  - **Standalone**: Executes VPP commands on a local VPP daemon via vppctl socket
 - **Multiple Transport Modes**: 
   - **Stdio** for local client-server communication
   - **HTTP/SSE** for remote network access between machines
@@ -26,6 +28,7 @@ This MCP server provides tools to interact with VPP instances for debugging purp
   - Tunnel interface information
   - VPP logs
   - Packet trace, PCAP, and dispatch trace capture
+  - Capture cleanup and lock management
   - BGP neighbors and global information
   - BGP RIB queries (IPv4/IPv6, IPs, prefixes)
 - **Official MCP Go SDK**: Uses the official Model Context Protocol Go SDK maintained by Google
@@ -36,8 +39,8 @@ This MCP server provides tools to interact with VPP instances for debugging purp
 ## Prerequisites
 
 - Go 1.24+
-- kubectl installed and configured with access to your Kubernetes cluster
-- VPP running in Kubernetes pods (e.g., Calico VPP dataplane)
+- **Kubernetes mode**: kubectl installed and configured with access to your Kubernetes cluster; VPP running in Kubernetes pods (e.g., Calico VPP dataplane)
+- **Standalone mode**: VPP running as a local daemon with vppctl accessible (default socket: `/var/run/vpp/cli.sock`)
 - MCP client (like Claude Desktop, Cline, or other MCP-compatible tools)
 
 ## Installation
@@ -96,25 +99,24 @@ For remote access, replace `localhost` with the server's IP address or hostname.
 
 ### Available Tools
 
-**Note**: All VPP tools use namespace `calico-vpp-dataplane` and container `vpp`.
+**Note**: In Kubernetes mode, VPP tools use namespace `calico-vpp-dataplane` and container `vpp`. In standalone mode, tools connect via the VPP socket.
+
+**Common Parameters for VPP Tools**:
+- `pod_name`: (Kubernetes mode, required) Name of the Kubernetes pod running VPP
+- `mode`: (optional) `"kubernetes"` (default) or `"standalone"`
+- `sock_path`: (Standalone mode, optional) VPP socket path (default: `/var/run/vpp/cli.sock`)
 
 #### `vpp_show_version`
 - **Description**: Get VPP version information
 - **Command**: `vppctl show version`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_show_int`
 - **Description**: Get VPP interface information
 - **Command**: `vppctl show int`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_show_int_addr`
 - **Description**: Get VPP interface address information
 - **Command**: `vppctl show int addr`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_show_hardware_interfaces`
 - **Description**: Shows detailed hardware interface information with VIRTIO queue statistics for all interfaces
@@ -132,66 +134,59 @@ For remote access, replace `localhost` with the server's IP address or hostname.
 #### `vpp_show_errors`
 - **Description**: Get VPP error counters
 - **Command**: `vppctl show errors`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_show_session_verbose`
 - **Description**: Get VPP session information with verbose output
 - **Command**: `vppctl show session verbose 2`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_show_npol_rules`
 - **Description**: List rules that are referenced by policies
 - **Command**: `vppctl show npol rules`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_show_npol_policies`
 - **Description**: List all the policies that are referenced on interfaces
 - **Command**: `vppctl show npol policies`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_show_npol_ipset`
 - **Description**: List ipsets that are referenced by rules (IPsets are just list of IPs)
 - **Command**: `vppctl show npol ipset`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_show_npol_interfaces`
 - **Description**: Show the resulting policies configured for every interface in VPP. The first IPv4 address of every pod is provided to help identify which pod and interface belongs to.
 - **Command**: `vppctl show npol interfaces`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 - **Output interpretation**:
   - `tx`: contains rules that are applied on packets that LEAVE VPP on a given interface. Rules are applied top to bottom.
   - `rx`: contains rules that are applied on packets that ENTER VPP on a given interface. Rules are applied top to bottom.
   - `profiles`: are specific rules that are enforced when a matched rule action is PASS or when no policies are configured.
 
 #### `vpp_trace`
-- **Description**: Capture VPP packet traces
+- **Description**: Capture VPP packet traces (**mutating** - modifies VPP trace state)
 - **Command**: `vppctl trace add`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
+- **Additional Parameters**:
   - `count` (optional): Number of packets to capture (default: 500)
+  - `timeout` (optional): Capture duration in seconds (default: 30)
   - `interface` (optional): Interface type - phy|af_xdp|af_packet|avf|vmxnet3|virtio|rdma|dpdk|memif|vcl (default: virtio)
 
 #### `vpp_pcap`
-- **Description**: Capture VPP packets to pcap file
+- **Description**: Capture VPP packets to pcap file (**mutating** - writes capture files)
 - **Command**: `vppctl pcap trace`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
+- **Additional Parameters**:
   - `count` (optional): Number of packets to capture (default: 500)
+  - `timeout` (optional): Capture duration in seconds (default: 30)
   - `interface` (optional): Interface name (e.g., host-eth0) or 'any' (default: 'any')
 
 #### `vpp_dispatch`
-- **Description**: Capture VPP dispatch trace to pcap file
+- **Description**: Capture VPP dispatch trace to pcap file (**mutating** - writes capture files)
 - **Command**: `vppctl pcap dispatch trace`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
+- **Additional Parameters**:
   - `count` (optional): Number of packets to capture (default: 500)
+  - `timeout` (optional): Capture duration in seconds (default: 30)
   - `interface` (optional): Interface type - phy|af_xdp|af_packet|avf|vmxnet3|virtio|rdma|dpdk|memif|vcl (default: virtio)
+
+#### `vpp_capture_cleanup`
+- **Description**: Force cleanup of all VPP capture operations (trace, pcap, dispatch) (**mutating**)
+- **Command**: Stops all captures, removes lock files, cleans up temporary capture files
+- **Use when**: A previous capture operation failed or left stale locks
 
 #### `vpp_get_pods`
 - **Description**: List all CalicoVPP pods with their IPs and nodes on which they are running
@@ -199,53 +194,37 @@ For remote access, replace `localhost` with the server's IP address or hostname.
 - **Parameters**: None required
 
 #### `vpp_clear_errors`
-- **Description**: Reset the error counters
+- **Description**: Reset the error counters (**mutating**)
 - **Command**: `vppctl clear errors`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_tcp_stats`
 - **Description**: Display global statistics reported by TCP
 - **Command**: `vppctl show tcp stats`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_session_stats`
 - **Description**: Display global statistics reported by the session layer
 - **Command**: `vppctl show session stats`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_get_logs`
 - **Description**: Display VPP logs
 - **Command**: `vppctl show logging`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_show_cnat_translation`
 - **Description**: Shows the active CNAT translations
 - **Command**: `vppctl show cnat translation`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_show_cnat_session`
 - **Description**: Lists the active CNAT sessions from the established five tuple to the five tuple rewrites
 - **Command**: `vppctl show cnat session`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 - **Output interpretation**: The output shows the `incoming 5-tuple` first that is used to match packets along with the `protocol`. Then it displays the `5-tuple after dNAT & sNAT`, followed by the `direction` and finally the `age` in seconds. `direction` being input for the PRE-ROUTING sessions and output is the POST-ROUTING sessions
 
 #### `vpp_clear_run`
-- **Description**: Clears live running error stats in VPP
+- **Description**: Clears live running error stats in VPP (**mutating**)
 - **Command**: `vppctl clear run`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_show_run`
 - **Description**: Shows live running error stats in VPP
 - **Command**: `vppctl show run`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 - **Debugging workflow**: Sometimes to debug an issue, you might need to run `vpp_clear_run` to erase historic stats and then wait for a few seconds in the issue state / run some tests so that the error stats are repopulated and then run `vpp_show_run` in order to diagnose what is going on in the system
 - **Output interpretation**: A loaded VPP will typically have (1) a high Vectors/Call maxing out at 256 (2) a low loops/sec struggling around 10000. The Clocks column tells you the consumption in cycles per node on average. Beyond 1e3 is expensive.
 
@@ -271,47 +250,39 @@ For remote access, replace `localhost` with the server's IP address or hostname.
 #### `vpp_show_ip_table`
 - **Description**: Prints all available IPv4 VRFs
 - **Command**: `vppctl show ip table`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_show_ip6_table`
 - **Description**: Prints all available IPv6 VRFs
 - **Command**: `vppctl show ip6 table`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
 
 #### `vpp_show_ip_fib`
 - **Description**: Prints all routes in a given pod IPv4 VRF
 - **Command**: `vppctl show ip fib index <idx>`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
+- **Additional Parameters**:
   - `fib_index` (required): The FIB table index
 
 #### `vpp_show_ip6_fib`
 - **Description**: Prints all routes in a given pod IPv6 VRF
 - **Command**: `vppctl show ip6 fib index <idx>`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
+- **Additional Parameters**:
   - `fib_index` (required): The FIB table index
 
 #### `vpp_show_ip_fib_prefix`
 - **Description**: Prints information about a specific prefix in a given pod IPv4 VRF
 - **Command**: `vppctl show ip fib index <idx> <prefix>`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
+- **Additional Parameters**:
   - `fib_index` (required): The FIB table index
   - `prefix` (required): The IP prefix to query (e.g., 10.0.0.0/24)
 
 #### `vpp_show_ip6_fib_prefix`
 - **Description**: Prints information about a specific prefix in a given pod IPv6 VRF
 - **Command**: `vppctl show ip6 fib index <idx> <prefix>`
-- **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running VPP
+- **Additional Parameters**:
   - `fib_index` (required): The FIB table index
   - `prefix` (required): The IPv6 prefix to query (e.g., 2001:db8::/32)
 
 #### `bgp_show_neighbors`
-- **Description**: Show BGP peers
+- **Description**: Show BGP peers (Kubernetes/CalicoVPP only)
 - **Command**: `gobgp neighbor`
 - **Parameters**:
   - `pod_name` (required): Name of the Kubernetes pod running the agent container with gobgp
@@ -360,7 +331,7 @@ For remote access, replace `localhost` with the server's IP address or hostname.
 The server executes VPP commands on existing Kubernetes pods:
 1. Connects to specified pods via kubectl
 2. Executes vppctl commands in the VPP container
-3. Executes gobhp commands in the agent container
+3. Executes gobgp commands in the agent container
 4. Returns results via MCP protocol
 
 ## Configuration
@@ -533,14 +504,15 @@ mcp.AddTool(vppServer.server, tool, vppServer.handleYourTool)
 
 3. Test individual tool:
 ```bash
-./tests/test_tool.sh vpp_show_int <pod-name>
+./tests/test_tool.sh <pod-name> vpp_show_int
 ```
 
 ### Dependencies
 
 This project uses:
 - `github.com/modelcontextprotocol/go-sdk` - Official Model Context Protocol Go SDK maintained in collaboration with Google
-- Standard Go libraries for Docker command execution
+- Standard Go libraries for command execution
+- `k8s.io/client-go` - Kubernetes client library for pod discovery and ConfigMap access
 
 ## Troubleshooting
 
