@@ -10,22 +10,22 @@
 ../tests/test_tool.sh calico-vpp-node-hnk97 vpp_show_int
 ```
 
-## Available Tools (35 Total)
+## Available Tools (37 Total)
 
-### VPP Tools (28)
+### VPP Tools (30)
 1. **vpp_show_version** - VPP version info
 2. **vpp_show_int** - Interface statistics  
 3. **vpp_show_int_addr** - Interface addresses
-4. **vpp_show_errors** - Error counters
-5. **vpp_show_session_verbose** - Session info
-6. **vpp_show_npol_rules** - Network policy rules
-7. **vpp_show_npol_policies** - Network policy summaries
-8. **vpp_show_npol_ipset** - IPsets referenced by rules
-9. **vpp_show_npol_interfaces** - Policies on interfaces
-10. **vpp_trace** - Packet trace capture
-11. **vpp_pcap** - PCAP capture
-12. **vpp_dispatch** - Dispatch trace capture
-13. **vpp_capture_cleanup** - Force cleanup of all capture operations
+4. **vpp_show_hardware_interfaces** - Hardware interface details with VIRTIO queue stats
+5. **vpp_show_errors** - Error counters
+6. **vpp_show_session_verbose** - Session info
+7. **vpp_show_npol_rules** - Network policy rules
+8. **vpp_show_npol_policies** - Network policy summaries
+9. **vpp_show_npol_ipset** - IPsets referenced by rules
+10. **vpp_show_npol_interfaces** - Policies on interfaces
+11. **vpp_trace** - Packet trace capture
+12. **vpp_pcap** - PCAP capture
+13. **vpp_dispatch** - Dispatch trace capture
 14. **vpp_get_pods** - List all CalicoVPP pods
 15. **vpp_clear_errors** - Reset error counters
 16. **vpp_tcp_stats** - TCP statistics
@@ -35,21 +35,23 @@
 20. **vpp_show_cnat_session** - CNAT sessions
 21. **vpp_clear_run** - Clear runtime statistics
 22. **vpp_show_run** - Runtime statistics
-23. **vpp_show_ip_table** - IPv4 VRF tables
-24. **vpp_show_ip6_table** - IPv6 VRF tables
-25. **vpp_show_ip_fib** - IPv4 FIB routes (requires fib_index)
-26. **vpp_show_ip6_fib** - IPv6 FIB routes (requires fib_index)
-27. **vpp_show_ip_fib_prefix** - IPv4 FIB prefix info (requires fib_index & prefix)
-28. **vpp_show_ip6_fib_prefix** - IPv6 FIB prefix info (requires fib_index & prefix)
+23. **vpp_show_tun_all** - Tunnel interface information
+24. **vpp_show_tun_interface** - Specific tunnel interface details (requires interface_name)
+25. **vpp_show_ip_table** - IPv4 VRF tables
+26. **vpp_show_ip6_table** - IPv6 VRF tables
+27. **vpp_show_ip_fib** - IPv4 FIB routes (requires fib_index)
+28. **vpp_show_ip6_fib** - IPv6 FIB routes (requires fib_index)
+29. **vpp_show_ip_fib_prefix** - IPv4 FIB prefix info (requires fib_index & prefix)
+30. **vpp_show_ip6_fib_prefix** - IPv6 FIB prefix info (requires fib_index & prefix)
 
 ### BGP Tools (7)
-29. **bgp_show_neighbors** - BGP peers
-30. **bgp_show_global_info** - BGP global information
-31. **bgp_show_global_rib4** - BGP IPv4 RIB
-32. **bgp_show_global_rib6** - BGP IPv6 RIB
-33. **bgp_show_ip** - BGP RIB entry for IP (requires IP address)
-34. **bgp_show_prefix** - BGP RIB entry for prefix (requires prefix)
-35. **bgp_show_neighbor** - BGP neighbor details (requires neighbor IP)
+31. **bgp_show_neighbors** - BGP peers
+32. **bgp_show_global_info** - BGP global information
+33. **bgp_show_global_rib4** - BGP IPv4 RIB
+34. **bgp_show_global_rib6** - BGP IPv6 RIB
+35. **bgp_show_ip** - BGP RIB entry for IP (requires IP address)
+36. **bgp_show_prefix** - BGP RIB entry for prefix (requires prefix)
+37. **bgp_show_neighbor** - BGP neighbor details (requires neighbor IP)
 
 **Note**: All VPP tools support dual execution modes: Kubernetes (default, uses namespace `calico-vpp-dataplane` and container `vpp`) and Standalone (set `mode="standalone"` for local VPP daemon). Capture and clear tools are **mutating** operations.
 

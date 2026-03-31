@@ -20,6 +20,7 @@ if [ -z "$POD_NAME" ] || [ -z "$TOOL_NAME" ]; then
     echo "- vpp_pcap: optional 'count interface' (default: 1000 any)"
     echo "- vpp_dispatch: optional 'count interface' (default: 1000 af-packet)"
     echo "- vpp_capture_cleanup: no extra parameters needed"
+    echo "- vpp_show_tun_interface: required interface_name (e.g., tun1)"
     echo "- bgp_show_ip: optional IP (default: 11.0.0.7)"
     echo "- bgp_show_prefix: optional prefix (default: 11.0.0.0/8)"
     echo "- bgp_show_neighbor: optional neighbor IP (default: 172.18.0.4)"
@@ -28,6 +29,7 @@ if [ -z "$POD_NAME" ] || [ -z "$TOOL_NAME" ]; then
     echo "  - vpp_show_version"
     echo "  - vpp_show_int"
     echo "  - vpp_show_int_addr"
+    echo "  - vpp_show_hardware_interfaces"
     echo "  - vpp_show_errors"
     echo "  - vpp_show_session_verbose"
     echo "  - vpp_show_npol_rules"
@@ -47,6 +49,8 @@ if [ -z "$POD_NAME" ] || [ -z "$TOOL_NAME" ]; then
     echo "  - vpp_show_cnat_session"
     echo "  - vpp_clear_run"
     echo "  - vpp_show_run"
+    echo "  - vpp_show_tun_all"
+    echo "  - vpp_show_tun_interface"
     echo "  - vpp_show_ip_table"
     echo "  - vpp_show_ip6_table"
     echo "  - vpp_show_ip_fib"
@@ -127,6 +131,10 @@ elif [[ "$TOOL_NAME" =~ ^(vpp_show_ip_fib_prefix|vpp_show_ip6_fib_prefix)$ ]]; t
         fi
     fi
     echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":{"pod_name":"'$POD_NAME'","fib_index":"'$FIB_INDEX'","prefix":"'$PREFIX'"}}}' >> "$TEMP_REQUESTS"
+elif [ "$TOOL_NAME" = "vpp_show_tun_interface" ]; then
+    # Tunnel interface tool that needs interface_name
+    INTERFACE_NAME="${PARAMETER1:-tun1}"
+    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":{"pod_name":"'$POD_NAME'","interface_name":"'$INTERFACE_NAME'"}}}' >> "$TEMP_REQUESTS"
 elif [[ "$TOOL_NAME" =~ ^(vpp_trace|vpp_pcap|vpp_dispatch)$ ]]; then
     # Capture tools with optional count and interface
     if [ -n "$PARAMETER1" ] && [ -n "$PARAMETER2" ]; then

@@ -14,7 +14,7 @@ This MCP server provides tools to interact with VPP instances for debugging purp
 - **Multiple Transport Modes**: 
   - **Stdio** for local client-server communication
   - **HTTP/SSE** for remote network access between machines
-- **35 Debugging Tools**: Comprehensive toolset for VPP and BGP debugging
+- **37 Debugging Tools**: Comprehensive toolset for VPP and BGP debugging
   - Pod management (list all CalicoVPP pods)
   - Version information
   - Interface statistics and addresses
@@ -25,6 +25,7 @@ This MCP server provides tools to interact with VPP instances for debugging purp
   - CNAT translations and sessions
   - Runtime statistics
   - IP routing tables and FIBs
+  - Tunnel interface information
   - VPP logs
   - Packet trace, PCAP, and dispatch trace capture
   - Capture cleanup and lock management
@@ -116,6 +117,19 @@ For remote access, replace `localhost` with the server's IP address or hostname.
 #### `vpp_show_int_addr`
 - **Description**: Get VPP interface address information
 - **Command**: `vppctl show int addr`
+
+#### `vpp_show_hardware_interfaces`
+- **Description**: Shows detailed hardware interface information with VIRTIO queue statistics for all interfaces
+- **Command**: `vppctl show hardware-interfaces`
+- **Parameters**:
+  - `pod_name` (required): Name of the Kubernetes pod running VPP
+- **Output**: Provides comprehensive hardware-level details including:
+  - Hardware interface names and indices
+  - Link state and speed
+  - MAC addresses
+  - Driver information
+  - VIRTIO queue statistics and depths
+  - Hardware offload capabilities
 
 #### `vpp_show_errors`
 - **Description**: Get VPP error counters
@@ -213,6 +227,25 @@ For remote access, replace `localhost` with the server's IP address or hostname.
 - **Command**: `vppctl show run`
 - **Debugging workflow**: Sometimes to debug an issue, you might need to run `vpp_clear_run` to erase historic stats and then wait for a few seconds in the issue state / run some tests so that the error stats are repopulated and then run `vpp_show_run` in order to diagnose what is going on in the system
 - **Output interpretation**: A loaded VPP will typically have (1) a high Vectors/Call maxing out at 256 (2) a low loops/sec struggling around 10000. The Clocks column tells you the consumption in cycles per node on average. Beyond 1e3 is expensive.
+
+#### `vpp_show_tun_all`
+- **Description**: Display all tunnel interfaces in VPP
+- **Command**: `vppctl show tun`
+- **Parameters**:
+  - `pod_name` (required): Name of the Kubernetes pod running VPP
+- **Output**: Shows detailed information about all tunnel interfaces configured in VPP, including:
+  - Tunnel interface names and indices
+  - Tunnel types (GRE, VXLAN, IPSec, etc.)
+  - Source and destination addresses
+  - Tunnel state and configuration
+
+#### `vpp_show_tun_interface`
+- **Description**: Inspect a specific tunnel interface in VPP by running `vppctl show tun` and filtering to the requested interface (emulating `grep <name> -A 40`)
+- **Command**: `vppctl show tun | grep <interface_name> -A 40` (emulated)
+- **Parameters**:
+  - `pod_name` (required): Name of the Kubernetes pod running VPP
+  - `interface_name` (required): The tunnel interface to inspect (for example, tun1)
+- **Output**: Provides detailed statistics for the selected tunnel interface, including queue depths, buffer usage, and offload capabilities
 
 #### `vpp_show_ip_table`
 - **Description**: Prints all available IPv4 VRFs
