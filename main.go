@@ -213,6 +213,153 @@ func mapInterfaceTypeToVppInputNode(k *KubeClient, interfaceType string) (string
 	}
 }
 
+// handleTunnelInterface emulates `vppctl show tun | grep <tunX> -A 40` by locating the
+// requested tunnel interface in the `show tun` output and returning the next 40 lines.
+func (s *VPPMCPServer) handleTunnelInterface(ctx context.Context, input VPPTunnelInterfaceInput) (*mcp.CallToolResult, any, error) {
+	inputJSON, _ := json.Marshal(input)
+	log.Printf("Received tunnel interface inspection request: %s", string(inputJSON))
+
+	if strings.TrimSpace(input.PodName) == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: "Error: pod_name is required. Please specify the Kubernetes pod running VPP."},
+			},
+		}, nil, fmt.Errorf("pod_name is required")
+	}
+
+	interfaceName := strings.TrimSpace(input.InterfaceName)
+	if interfaceName == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: "Error: interface_name is required. Please provide the tunnel interface name (for example, tun1)."},
+			},
+		}, nil, fmt.Errorf("interface_name is required")
+	}
+
+	result, err := ExecutePodVPPCommand(ctx, input.PodName, "show tun")
+	if err != nil {
+		log.Printf("Error executing 'show tun' on pod %s: %v", input.PodName, err)
+	}
+
+	if result == nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: fmt.Sprintf("Failed to retrieve tunnel information for pod %s.", input.PodName)},
+			},
+		}, nil, err
+	}
+
+	success, ok := result["success"].(bool)
+	if !ok || !success {
+		errorMsg, _ := result["error"].(string)
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: fmt.Sprintf("Error executing VPP command on pod %s: %s", input.PodName, errorMsg)},
+			},
+		}, nil, err
+	}
+
+	output := result["output"].(string)
+	lines := strings.Split(output, "\n")
+	needle := fmt.Sprintf("Interface: %s", interfaceName)
+	start := -1
+	for idx, line := range lines {
+		if strings.HasPrefix(strings.TrimSpace(line), needle) {
+			start = idx
+			break
+		}
+	}
+
+	if start == -1 {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: fmt.Sprintf("No tunnel interface named %s found in pod %s.", interfaceName, input.PodName)},
+			},
+		}, nil, nil
+	}
+
+	end := start + 41 // include matching line plus the next 40 lines (grep -A 40)
+	if end > len(lines) {
+		end = len(lines)
+	}
+	snippet := strings.Join(lines[start:end], "\n")
+
+	responseText := fmt.Sprintf(
+		"VPP Tunnel Interface %s:\n\n%s\n\nCommand executed: vppctl show tun | grep '%s' -A 40 (emulated)\nPod: %s (container: vpp)",
+		interfaceName,
+		snippet,
+		interfaceName,
+		input.PodName,
+	)
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: responseText},
+		},
+	}, nil, nil
+}
+
+// handleHardwareInterface runs `vppctl show hardware-interfaces <iface>` to inspect a specific interface
+func (s *VPPMCPServer) handleHardwareInterface(ctx context.Context, input VPPInterfaceInput) (*mcp.CallToolResult, any, error) {
+	inputJSON, _ := json.Marshal(input)
+	log.Printf("Received hardware interface inspection request: %s", string(inputJSON))
+
+	podName := strings.TrimSpace(input.PodName)
+	if podName == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: "Error: pod_name is required. Please specify the Kubernetes pod running VPP."},
+			},
+		}, nil, fmt.Errorf("pod_name is required")
+	}
+
+	interfaceName := strings.TrimSpace(input.InterfaceName)
+	if interfaceName == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: "Error: interface_name is required. Please provide the interface name (for example, tun1)."},
+			},
+		}, nil, fmt.Errorf("interface_name is required")
+	}
+
+	command := fmt.Sprintf("show hardware-interfaces %s", interfaceName)
+	result, err := ExecutePodVPPCommand(ctx, podName, command)
+	if err != nil {
+		log.Printf("Error executing '%s' on pod %s: %v", command, podName, err)
+	}
+
+	if result == nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: fmt.Sprintf("Failed to retrieve hardware interface information for pod %s.", podName)},
+			},
+		}, nil, err
+	}
+
+	if success, ok := result["success"].(bool); ok && success {
+		output, _ := result["output"].(string)
+		responseText := fmt.Sprintf(
+			"VPP Hardware Interface %s:\n\n%s\n\nCommand executed: vppctl %s\nPod: %s (container: vpp)",
+			interfaceName,
+			output,
+			command,
+			podName,
+		)
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{Text: responseText},
+			},
+		}, nil, nil
+	}
+
+	errorMsg, _ := result["error"].(string)
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{Text: fmt.Sprintf("Error executing VPP command on pod %s: %s\nCommand attempted: vppctl %s", podName, errorMsg, command)},
+		},
+	}, nil, err
+}
+
 // parseVppInterfaces parses the output of "vppctl show interface" and returns a list of up interfaces
 func parseVppInterfaces(output string) []string {
 	var upInterfaces []string
@@ -264,6 +411,22 @@ type VPPCaptureInput struct {
 	Count int `json:"count,omitempty"`
 	// Interface specifies the interface type or name to capture from
 	Interface string `json:"interface,omitempty"`
+}
+
+// VPPTunnelInterfaceInput represents the input for VPP tunnel interface tools
+type VPPTunnelInterfaceInput struct {
+	// PodName specifies the name of the Kubernetes pod running VPP
+	PodName string `json:"pod_name"`
+	// InterfaceName specifies the tunnel interface to inspect (e.g., tun1)
+	InterfaceName string `json:"interface_name"`
+}
+
+// VPPInterfaceInput represents input for tools that target a specific interface
+type VPPInterfaceInput struct {
+	// PodName specifies the name of the Kubernetes pod running VPP
+	PodName string `json:"pod_name"`
+	// InterfaceName specifies the interface to inspect (for example, GigabitEthernet0/8/0 or tun1)
+	InterfaceName string `json:"interface_name"`
 }
 
 // VPPFIBInput represents the input for VPP FIB tools requiring fib_index
@@ -1245,6 +1408,37 @@ func main() {
 		return vppServer.handleVPPCommand(ctx, input, "show int addr", "VPP Interface Address Information")
 	})
 
+	// Define vpp_show_hardware_interfaces tool
+	toolShowHardwareInterfaces := &mcp.Tool{
+		Name: "vpp_show_hardware_interfaces",
+		Description: "Shows detailed hardware interface information with VIRTIO queue statistics for all interfaces by running 'vppctl show hardware-interfaces' in a Kubernetes VPP container\n\n" +
+			"This command provides comprehensive hardware-level details including:\n" +
+			"- Hardware interface names and indices\n" +
+			"- Link state and speed\n" +
+			"- MAC addresses\n" +
+			"- Driver information\n" +
+			"- VIRTIO queue statistics and depths\n" +
+			"- Hardware offload capabilities\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP",
+	}
+	mcp.AddTool(vppServer.server, toolShowHardwareInterfaces, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "show hardware-interfaces", "VPP Hardware Interface Information")
+	})
+
+	// Define vpp_show_hardware_interface tool
+	toolShowHardwareInterface := &mcp.Tool{
+		Name: "vpp_show_hardware_interface",
+		Description: "Show hardware information for a specific interface by running 'vppctl show hardware-interfaces <interface>' in a Kubernetes VPP container\n\n" +
+			"This command returns hardware-level details (link state, speed, MAC, driver, queue stats, offload capabilities) for the selected interface only.\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP\n" +
+			"- interface_name: The interface to inspect (for example, tun1)",
+	}
+	mcp.AddTool(vppServer.server, toolShowHardwareInterface, func(ctx context.Context, req *mcp.CallToolRequest, input VPPInterfaceInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleHardwareInterface(ctx, input)
+	})
+
 	// Define vpp_show_errors tool
 	toolShowErrors := &mcp.Tool{
 		Name: "vpp_show_errors",
@@ -1486,6 +1680,34 @@ func main() {
 	}
 	mcp.AddTool(vppServer.server, toolShowRun, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
 		return vppServer.handleVPPCommand(ctx, input, "show run", "VPP Runtime Statistics")
+	})
+
+	// Define vpp_show_tun_all tool
+	toolShowTunAll := &mcp.Tool{
+		Name: "vpp_show_tun_all",
+		Description: "Display all tunnel interfaces in VPP by running 'vppctl show tun' in a Kubernetes VPP container\n\n" +
+			"This command shows detailed information about all tunnel interfaces configured in VPP, including:\n" +
+			"- Tunnel interface names and indices\n" +
+			"- Tunnel types (GRE, VXLAN, IPSec, etc.)\n" +
+			"- Source and destination addresses\n" +
+			"- Tunnel state and configuration\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP",
+	}
+	mcp.AddTool(vppServer.server, toolShowTunAll, func(ctx context.Context, req *mcp.CallToolRequest, input VPPCommandInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleVPPCommand(ctx, input, "show tun", "VPP Tunnel Interfaces")
+	})
+
+	toolShowTunInterface := &mcp.Tool{
+		Name: "vpp_show_tun_interface",
+		Description: "Inspect a specific tunnel interface in VPP by running 'vppctl show tun' and filtering to the requested interface (emulating 'grep <name> -A 40').\n\n" +
+			"This command provides detailed statistics for the selected tunnel interface, including queue depths, buffer usage, and offload capabilities.\n\n" +
+			"Required parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running VPP\n" +
+			"- interface_name: The tunnel interface to inspect (for example, tun1)",
+	}
+	mcp.AddTool(vppServer.server, toolShowTunInterface, func(ctx context.Context, req *mcp.CallToolRequest, input VPPTunnelInterfaceInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleTunnelInterface(ctx, input)
 	})
 
 	// Define vpp_show_ip_table tool

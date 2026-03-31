@@ -1,7 +1,6 @@
 {
   "description": "Example MCP JSON-RPC requests for testing the VPP MCP server",
   "note": "Send these via stdio to the vpp-mcp-server process",
-  
   "1_initialize": {
     "description": "Initialize the MCP session (required first)",
     "request": {
@@ -18,7 +17,6 @@
       }
     }
   },
-  
   "2_list_tools": {
     "description": "List all available tools",
     "request": {
@@ -28,7 +26,6 @@
       "params": {}
     }
   },
-  
   "3_call_show_version": {
     "description": "Call vpp_show_version tool",
     "request": {
@@ -43,7 +40,6 @@
       }
     }
   },
-  
   "4_call_show_int": {
     "description": "Call vpp_show_int tool",
     "request": {
@@ -58,7 +54,6 @@
       }
     }
   },
-  
   "5_call_show_int_addr": {
     "description": "Call vpp_show_int_addr tool",
     "request": {
@@ -73,12 +68,25 @@
       }
     }
   },
-  
-  "6_call_show_errors": {
-    "description": "Call vpp_show_errors tool",
+  "6_call_show_hardware_interfaces": {
+    "description": "Call vpp_show_hardware_interfaces tool",
     "request": {
       "jsonrpc": "2.0",
       "id": 6,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_hardware_interfaces",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  "7_call_show_errors": {
+    "description": "Call vpp_show_errors tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 7,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_errors",
@@ -88,12 +96,11 @@
       }
     }
   },
-  
-  "7_call_show_session": {
+  "8_call_show_session": {
     "description": "Call vpp_show_session_verbose tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 7,
+      "id": 8,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_session_verbose",
@@ -103,12 +110,11 @@
       }
     }
   },
-  
-  "8_call_show_npol_rules": {
+  "9_call_show_npol_rules": {
     "description": "Call vpp_show_npol_rules tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 8,
+      "id": 9,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_npol_rules",
@@ -118,12 +124,11 @@
       }
     }
   },
-  
-  "9_call_show_npol_policies": {
+  "10_call_show_npol_policies": {
     "description": "Call vpp_show_npol_policies tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 9,
+      "id": 10,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_npol_policies",
@@ -133,12 +138,11 @@
       }
     }
   },
-  
-  "10_call_show_npol_ipset": {
+  "11_call_show_npol_ipset": {
     "description": "Call vpp_show_npol_ipset tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 10,
+      "id": 11,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_npol_ipset",
@@ -148,12 +152,11 @@
       }
     }
   },
-  
-  "11_call_show_npol_interfaces": {
+  "12_call_show_npol_interfaces": {
     "description": "Call vpp_show_npol_interfaces tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 11,
+      "id": 12,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_npol_interfaces",
@@ -163,12 +166,11 @@
       }
     }
   },
-  
-  "12_call_get_pods": {
+  "13_call_get_pods": {
     "description": "Call vpp_get_pods tool (no pod_name required)",
     "request": {
       "jsonrpc": "2.0",
-      "id": 12,
+      "id": 13,
       "method": "tools/call",
       "params": {
         "name": "vpp_get_pods",
@@ -176,12 +178,11 @@
       }
     }
   },
-  
-  "13_call_clear_errors": {
+  "15_call_clear_errors": {
     "description": "Call vpp_clear_errors tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 13,
+      "id": 15,
       "method": "tools/call",
       "params": {
         "name": "vpp_clear_errors",
@@ -191,12 +192,11 @@
       }
     }
   },
-  
-  "14_call_tcp_stats": {
+  "15_call_tcp_stats": {
     "description": "Call vpp_tcp_stats tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 14,
+      "id": 15,
       "method": "tools/call",
       "params": {
         "name": "vpp_tcp_stats",
@@ -206,12 +206,11 @@
       }
     }
   },
-  
-  "15_call_session_stats": {
+  "16_call_session_stats": {
     "description": "Call vpp_session_stats tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 15,
+      "id": 16,
       "method": "tools/call",
       "params": {
         "name": "vpp_session_stats",
@@ -221,12 +220,11 @@
       }
     }
   },
-  
-  "16_call_get_logs": {
+  "17_call_get_logs": {
     "description": "Call vpp_get_logs tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 16,
+      "id": 17,
       "method": "tools/call",
       "params": {
         "name": "vpp_get_logs",
@@ -236,12 +234,11 @@
       }
     }
   },
-  
-  "17_call_show_cnat_translation": {
+  "18_call_show_cnat_translation": {
     "description": "Call vpp_show_cnat_translation tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 17,
+      "id": 18,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_cnat_translation",
@@ -251,12 +248,11 @@
       }
     }
   },
-  
-  "18_call_show_cnat_session": {
+  "19_call_show_cnat_session": {
     "description": "Call vpp_show_cnat_session tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 18,
+      "id": 19,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_cnat_session",
@@ -266,12 +262,11 @@
       }
     }
   },
-  
-  "19_call_clear_run": {
+  "20_call_clear_run": {
     "description": "Call vpp_clear_run tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 19,
+      "id": 20,
       "method": "tools/call",
       "params": {
         "name": "vpp_clear_run",
@@ -281,12 +276,11 @@
       }
     }
   },
-  
-  "20_call_show_run": {
+  "21_call_show_run": {
     "description": "Call vpp_show_run tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 20,
+      "id": 21,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_run",
@@ -296,12 +290,40 @@
       }
     }
   },
-  
-  "21_call_show_ip_table": {
+  "22_call_show_tun_all": {
+    "description": "Call vpp_show_tun_all tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_tun_all",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  "23_call_show_tun_interface": {
+    "description": "Call vpp_show_tun_interface tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "tools/call",
+      "params": {
+        "name": "vpp_show_tun_interface",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME",
+          "interface_name": "tun1"
+        }
+      }
+    }
+  },
+  "24_call_show_ip_table": {
     "description": "Call vpp_show_ip_table tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 21,
+      "id": 24,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_ip_table",
@@ -311,12 +333,11 @@
       }
     }
   },
-  
-  "22_call_show_ip6_table": {
+  "25_call_show_ip6_table": {
     "description": "Call vpp_show_ip6_table tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 22,
+      "id": 25,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_ip6_table",
@@ -326,12 +347,11 @@
       }
     }
   },
-  
-  "23_call_show_ip_fib": {
+  "26_call_show_ip_fib": {
     "description": "Call vpp_show_ip_fib tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 23,
+      "id": 26,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_ip_fib",
@@ -342,12 +362,11 @@
       }
     }
   },
-  
-  "24_call_show_ip6_fib": {
+  "27_call_show_ip6_fib": {
     "description": "Call vpp_show_ip6_fib tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 24,
+      "id": 27,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_ip6_fib",
@@ -358,12 +377,11 @@
       }
     }
   },
-  
-  "25_call_show_ip_fib_prefix": {
+  "28_call_show_ip_fib_prefix": {
     "description": "Call vpp_show_ip_fib_prefix tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 25,
+      "id": 28,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_ip_fib_prefix",
@@ -375,12 +393,11 @@
       }
     }
   },
-  
-  "26_call_show_ip6_fib_prefix": {
+  "29_call_show_ip6_fib_prefix": {
     "description": "Call vpp_show_ip6_fib_prefix tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 26,
+      "id": 29,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_ip6_fib_prefix",
@@ -392,12 +409,11 @@
       }
     }
   },
-  
-  "27_call_vpp_trace": {
+  "30_call_vpp_trace": {
     "description": "Call vpp_trace tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 27,
+      "id": 30,
       "method": "tools/call",
       "params": {
         "name": "vpp_trace",
@@ -407,12 +423,11 @@
       }
     }
   },
-
-  "28_call_vpp_pcap": {
+  "31_call_vpp_pcap": {
     "description": "Call vpp_pcap tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 28,
+      "id": 31,
       "method": "tools/call",
       "params": {
         "name": "vpp_pcap",
@@ -422,12 +437,11 @@
       }
     }
   },
-
-  "29_call_vpp_dispatch": {
+  "32_call_vpp_dispatch": {
     "description": "Call vpp_dispatch tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 29,
+      "id": 32,
       "method": "tools/call",
       "params": {
         "name": "vpp_dispatch",
@@ -437,12 +451,11 @@
       }
     }
   },
-
-  "30_call_bgp_show_neighbors": {
+  "33_call_bgp_show_neighbors": {
     "description": "Call bgp_show_neighbors tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 30,
+      "id": 33,
       "method": "tools/call",
       "params": {
         "name": "bgp_show_neighbors",
@@ -452,12 +465,11 @@
       }
     }
   },
-
-  "31_call_bgp_show_global_info": {
+  "34_call_bgp_show_global_info": {
     "description": "Call bgp_show_global_info tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 31,
+      "id": 34,
       "method": "tools/call",
       "params": {
         "name": "bgp_show_global_info",
@@ -467,12 +479,11 @@
       }
     }
   },
-
-  "32_call_bgp_show_global_rib4": {
+  "35_call_bgp_show_global_rib4": {
     "description": "Call bgp_show_global_rib4 tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 32,
+      "id": 35,
       "method": "tools/call",
       "params": {
         "name": "bgp_show_global_rib4",
@@ -482,12 +493,11 @@
       }
     }
   },
-
-  "33_call_bgp_show_global_rib6": {
+  "36_call_bgp_show_global_rib6": {
     "description": "Call bgp_show_global_rib6 tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 33,
+      "id": 36,
       "method": "tools/call",
       "params": {
         "name": "bgp_show_global_rib6",
@@ -497,12 +507,11 @@
       }
     }
   },
-
-  "34_call_bgp_show_ip": {
+  "37_call_bgp_show_ip": {
     "description": "Call bgp_show_ip tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 34,
+      "id": 37,
       "method": "tools/call",
       "params": {
         "name": "bgp_show_ip",
@@ -513,12 +522,11 @@
       }
     }
   },
-
-  "35_call_bgp_show_prefix": {
+  "38_call_bgp_show_prefix": {
     "description": "Call bgp_show_prefix tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 35,
+      "id": 38,
       "method": "tools/call",
       "params": {
         "name": "bgp_show_prefix",
@@ -529,12 +537,11 @@
       }
     }
   },
-
-  "36_call_bgp_show_neighbor": {
+  "39_call_bgp_show_neighbor": {
     "description": "Call bgp_show_neighbor tool",
     "request": {
       "jsonrpc": "2.0",
-      "id": 36,
+      "id": 39,
       "method": "tools/call",
       "params": {
         "name": "bgp_show_neighbor",
@@ -545,7 +552,6 @@
       }
     }
   },
-
   "usage_example": {
     "description": "How to use these requests",
     "steps": [
