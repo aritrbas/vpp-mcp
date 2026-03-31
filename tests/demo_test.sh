@@ -39,7 +39,7 @@ fi
 echo "=========================================="
 echo "VPP MCP Server Demo"
 echo "=========================================="
-echo -e "${YELLOW}Testing all 42 MCP server tools against pod: ${GREEN}$POD_NAME${NC}"
+echo -e "${YELLOW}Testing all 44 MCP server tools against pod: ${GREEN}$POD_NAME${NC}"
 echo ""
 
 # Function to test a tool
@@ -53,7 +53,7 @@ test_tool() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
     # Send requests and capture only stdout (JSON)
-    if [[ "$tool_name" =~ ^(vpp_get_pods|vpp_show_daemonset_image)$ ]]; then
+    if [[ "$tool_name" =~ ^(vpp_get_pods|vpp_show_daemonset_image|bgp_cluster_show_neighbors)$ ]]; then
         # Tools that don't require pod_name
         RESULT=$(
             (
@@ -176,6 +176,17 @@ test_tool() {
                 sleep 1.5
             ) | timeout 5s ./vpp-mcp-server 2>/dev/null
         )
+    elif [[ "$tool_name" == "bgp_get_agent_logs" ]]; then
+        # Fetch recent agent logs for BGP troubleshooting
+        TAIL_LINES="200"
+        RESULT=$(
+            (
+                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
+                sleep 0.3
+                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\",\"tail_lines\":$TAIL_LINES}}}";
+                sleep 1.5
+            ) | timeout 5s ./vpp-mcp-server 2>/dev/null
+        )
     else
         # Normal case for tools that take only pod_name
         RESULT=$(
@@ -252,12 +263,14 @@ test_tool "bgp_show_global_rib6" "BGP IPv6 RIB Information"
 test_tool "bgp_show_ip" "BGP RIB Entry for IP (parameter=11.0.0.7)"
 test_tool "bgp_show_prefix" "BGP RIB Entry for Prefix (parameter=11.0.0.0/8)"
 test_tool "bgp_show_neighbor" "BGP Neighbor Details (parameter=172.18.0.4)"
+test_tool "bgp_cluster_show_neighbors" "BGP Cluster Neighbor Summary"
+test_tool "bgp_get_agent_logs" "BGP Agent Logs (tail_lines=200)"
 
 echo "=========================================="
 echo "✓ Demo completed!"
 echo "=========================================="
 echo ""
-echo "📊 All 42 tools tested successfully"
+echo "📊 All 44 tools tested successfully"
 echo "🎯 MCP server is working correctly"
 echo ""
 echo "Next steps:"

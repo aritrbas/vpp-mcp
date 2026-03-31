@@ -74,9 +74,9 @@ http://localhost:8080/sse
 
 ## Tool availability over remote HTTP
 
-Remote clients can use the full current toolset (**42 tools**):
+Remote clients can use the full current toolset (**44 tools**):
 - 35 VPP tools (including `vpp_show_daemonset_image`)
-- 7 BGP tools
+- 9 BGP tools (including `bgp_cluster_show_neighbors` and `bgp_get_agent_logs`)
 
 ## Troubleshooting
 

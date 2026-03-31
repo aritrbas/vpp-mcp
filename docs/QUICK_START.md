@@ -21,6 +21,7 @@ make build
 # no-pod tools
 ./tests/test_tool.sh vpp_get_pods
 ./tests/test_tool.sh vpp_show_daemonset_image
+./tests/test_tool.sh bgp_cluster_show_neighbors
 ```
 
 ## 4) Run full demo
@@ -31,9 +32,9 @@ make build
 
 ## Tool Inventory (Current Branch)
 
-Total: **42 tools**
+Total: **44 tools**
 - **35 VPP tools**
-- **7 BGP tools**
+- **9 BGP tools**
 
 ### VPP tools (35)
 1. `vpp_show_version`
@@ -72,7 +73,7 @@ Total: **42 tools**
 34. `vpp_get_pods`
 35. `vpp_show_daemonset_image`
 
-### BGP tools (7)
+### BGP tools (9)
 1. `bgp_show_neighbors`
 2. `bgp_show_global_info`
 3. `bgp_show_global_rib4`
@@ -80,6 +81,8 @@ Total: **42 tools**
 5. `bgp_show_ip`
 6. `bgp_show_prefix`
 7. `bgp_show_neighbor`
+8. `bgp_cluster_show_neighbors`
+9. `bgp_get_agent_logs`
 
 ## Mode Notes
 
@@ -91,6 +94,8 @@ Total: **42 tools**
   - `vpp_show_daemonset_image`
   - `vpp_show_hardware_interface`
   - `vpp_show_tun_interface`
+  - `bgp_cluster_show_neighbors`
+  - `bgp_get_agent_logs`
 
 ## Manual JSON-RPC example
 

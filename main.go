@@ -11,12 +11,15 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	corev1client "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -239,6 +242,20 @@ type BGPParameterCommandInput struct {
 	PodName string `json:"pod_name"`
 	// Parameter specifies the parameter value (IP address, prefix, or neighbor IP)
 	Parameter string `json:"parameter"`
+}
+
+// BGPClusterInput represents optional input for cluster-wide BGP checks
+type BGPClusterInput struct {
+	// Namespace specifies the Kubernetes namespace (default: calico-vpp-dataplane)
+	Namespace string `json:"namespace,omitempty"`
+}
+
+// BGPAgentLogsInput represents input for fetching agent container logs
+type BGPAgentLogsInput struct {
+	// PodName specifies the name of the Kubernetes pod running the agent container with gobgp
+	PodName string `json:"pod_name"`
+	// TailLines specifies how many recent lines to fetch (default: 200, max: 5000)
+	TailLines int `json:"tail_lines,omitempty"`
 }
 
 // EmptyInput represents tools that don't require any input parameters
@@ -534,6 +551,66 @@ func ExecutePodGoBGPCommand(ctx context.Context, podName, command string) (map[s
 		"node":    nodeName,
 		"pod":     podName,
 	}, nil
+}
+
+type bgpNeighborRow struct {
+	Peer     string
+	ASN      string
+	UpDown   string
+	State    string
+	Received int
+	Accepted int
+}
+
+func parseGoBGPNeighborRows(output string) []bgpNeighborRow {
+	rows := []bgpNeighborRow{}
+
+	for _, line := range strings.Split(output, "\n") {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "Peer ") {
+			continue
+		}
+
+		parts := strings.SplitN(line, "|", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		leftFields := strings.Fields(parts[0])
+		rightFields := strings.Fields(parts[1])
+		if len(leftFields) < 4 || len(rightFields) < 2 {
+			continue
+		}
+
+		received, err := strconv.Atoi(rightFields[0])
+		if err != nil {
+			continue
+		}
+		accepted, err := strconv.Atoi(rightFields[1])
+		if err != nil {
+			continue
+		}
+
+		rows = append(rows, bgpNeighborRow{
+			Peer:     leftFields[0],
+			ASN:      leftFields[1],
+			UpDown:   leftFields[2],
+			State:    leftFields[3],
+			Received: received,
+			Accepted: accepted,
+		})
+	}
+
+	return rows
+}
+
+func podHasContainer(pod corev1.Pod, containerName string) bool {
+	for _, container := range pod.Spec.Containers {
+		if container.Name == containerName {
+			return true
+		}
+	}
+	return false
 }
 
 // =============================================================================
@@ -1994,6 +2071,260 @@ func (s *VPPMCPServer) handleShowDaemonsetImage(ctx context.Context, input VPPDa
 // BGP HANDLERS - KUBERNETES-ONLY, RUNS IN AGENT CONTAINER
 // =============================================================================
 
+// handleBGPClusterNeighbors summarizes BGP peering health across all running CalicoVPP pods
+func (s *VPPMCPServer) handleBGPClusterNeighbors(ctx context.Context, input BGPClusterInput) (*mcp.CallToolResult, any, error) {
+	namespace := strings.TrimSpace(input.Namespace)
+	if namespace == "" {
+		namespace = "calico-vpp-dataplane"
+	}
+
+	log.Printf("Received bgp_cluster_show_neighbors request for namespace: %s", namespace)
+
+	k8sClient, err := newKubeClient()
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error: Failed to create Kubernetes client: %v", err),
+				},
+			},
+		}, nil, err
+	}
+
+	podList, err := k8sClient.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error listing pods in namespace %s: %v", namespace, err),
+				},
+			},
+		}, nil, err
+	}
+
+	candidates := make([]corev1.Pod, 0, len(podList.Items))
+	for _, pod := range podList.Items {
+		if pod.DeletionTimestamp != nil || pod.Status.Phase != corev1.PodRunning {
+			continue
+		}
+		if !podHasContainer(pod, "agent") {
+			continue
+		}
+		candidates = append(candidates, pod)
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].Name < candidates[j].Name
+	})
+
+	if len(candidates) == 0 {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("No running pods with an 'agent' container were found in namespace '%s'.", namespace),
+				},
+			},
+		}, nil, nil
+	}
+
+	var builder strings.Builder
+	totalPeers := 0
+	totalIssueCount := 0
+	healthyPods := 0
+
+	builder.WriteString("CalicoVPP BGP Cluster Neighbor Summary\n\n")
+	builder.WriteString(fmt.Sprintf("Namespace: %s\n", namespace))
+	builder.WriteString(fmt.Sprintf("Pods checked: %d\n", len(candidates)))
+	builder.WriteString("Healthy criteria: every peer is in Establ state and Accepted > 0.\n\n")
+
+	for _, pod := range candidates {
+		result, execErr := ExecutePodGoBGPCommand(ctx, pod.Name, "neighbor")
+		if execErr != nil {
+			errorMsg := execErr.Error()
+			if result != nil {
+				if msg, ok := result["error"].(string); ok && strings.TrimSpace(msg) != "" {
+					errorMsg = msg
+				}
+			}
+			builder.WriteString(fmt.Sprintf("Pod %s (node: %s): ERROR\n", pod.Name, pod.Spec.NodeName))
+			builder.WriteString(fmt.Sprintf("- unable to execute gobgp neighbor: %s\n\n", errorMsg))
+			totalIssueCount++
+			continue
+		}
+
+		output, _ := result["output"].(string)
+		rows := parseGoBGPNeighborRows(output)
+		if len(rows) == 0 {
+			builder.WriteString(fmt.Sprintf("Pod %s (node: %s): WARNING\n", pod.Name, pod.Spec.NodeName))
+			builder.WriteString("- no neighbor rows were parsed from gobgp output\n\n")
+			totalIssueCount++
+			continue
+		}
+
+		totalPeers += len(rows)
+
+		established := 0
+		acceptedZero := 0
+		podIssues := make([]string, 0)
+
+		for _, row := range rows {
+			issueNotes := make([]string, 0, 2)
+			if row.State == "Establ" {
+				established++
+			} else {
+				issueNotes = append(issueNotes, fmt.Sprintf("state=%s", row.State))
+			}
+			if row.Accepted == 0 {
+				acceptedZero++
+				issueNotes = append(issueNotes, "accepted=0")
+			}
+			if len(issueNotes) > 0 {
+				podIssues = append(podIssues, fmt.Sprintf("%s (received=%d): %s", row.Peer, row.Received, strings.Join(issueNotes, ", ")))
+			}
+		}
+
+		status := "HEALTHY"
+		if len(podIssues) > 0 {
+			status = "DEGRADED"
+			totalIssueCount += len(podIssues)
+		} else {
+			healthyPods++
+		}
+
+		builder.WriteString(fmt.Sprintf("Pod %s (node: %s): %s\n", pod.Name, pod.Spec.NodeName, status))
+		builder.WriteString(fmt.Sprintf("- peers: %d\n", len(rows)))
+		builder.WriteString(fmt.Sprintf("- established: %d\n", established))
+		builder.WriteString(fmt.Sprintf("- non-established: %d\n", len(rows)-established))
+		builder.WriteString(fmt.Sprintf("- accepted=0: %d\n", acceptedZero))
+		if len(podIssues) > 0 {
+			builder.WriteString("- issue details:\n")
+			for _, issue := range podIssues {
+				builder.WriteString(fmt.Sprintf("  - %s\n", issue))
+			}
+		}
+		builder.WriteString("\n")
+	}
+
+	clusterVerdict := "HEALTHY"
+	if totalIssueCount > 0 {
+		clusterVerdict = "DEGRADED"
+	}
+
+	builder.WriteString(fmt.Sprintf("Cluster verdict: %s\n", clusterVerdict))
+	builder.WriteString(fmt.Sprintf("Total peers observed: %d\n", totalPeers))
+	builder.WriteString(fmt.Sprintf("Healthy pods: %d/%d\n\n", healthyPods, len(candidates)))
+	builder.WriteString("Recommended follow-up tools:\n")
+	builder.WriteString("- bgp_show_neighbor (for per-peer details)\n")
+	builder.WriteString("- bgp_show_global_info / bgp_show_global_rib4 / bgp_show_global_rib6\n")
+	builder.WriteString("- bgp_get_agent_logs (when peers are missing or unstable)\n")
+	builder.WriteString(fmt.Sprintf("\nCommand executed per pod: kubectl exec -n %s -c agent <pod> -- gobgp neighbor", namespace))
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: builder.String(),
+			},
+		},
+	}, nil, nil
+}
+
+// handleBGPAgentLogs shows recent logs from the calico-vpp agent container for a pod
+func (s *VPPMCPServer) handleBGPAgentLogs(ctx context.Context, input BGPAgentLogsInput) (*mcp.CallToolResult, any, error) {
+	podName := strings.TrimSpace(input.PodName)
+	log.Printf("Received bgp_get_agent_logs request for pod: %s", podName)
+
+	if podName == "" {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: "Error: pod_name is required. Please specify the Kubernetes pod name.",
+				},
+			},
+		}, nil, fmt.Errorf("pod_name is required")
+	}
+
+	tailLines := input.TailLines
+	if tailLines <= 0 {
+		tailLines = 200
+	}
+	if tailLines > 5000 {
+		tailLines = 5000
+	}
+
+	namespace := "calico-vpp-dataplane"
+
+	k8sClient, err := newKubeClient()
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error: Failed to create Kubernetes client: %v", err),
+				},
+			},
+		}, nil, err
+	}
+
+	_, err = k8sClient.CoreV1().Pods(namespace).Get(ctx, podName, metav1.GetOptions{})
+	if err != nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error validating pod: %v", err),
+				},
+			},
+		}, nil, err
+	}
+
+	cmdArgs := []string{
+		"logs",
+		"-n", namespace,
+		podName,
+		"-c", "agent",
+		"--tail", strconv.Itoa(tailLines),
+	}
+
+	cmdCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	defer cancel()
+
+	cmd := exec.CommandContext(cmdCtx, "kubectl", cmdArgs...)
+
+	var stdout, stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	execErr := cmd.Run()
+	output := strings.TrimSpace(stdout.String())
+	errOutput := strings.TrimSpace(stderr.String())
+
+	if execErr != nil {
+		errorMsg := errOutput
+		if errorMsg == "" {
+			errorMsg = execErr.Error()
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("Error executing kubectl command: %s\nCommand: kubectl %s",
+						errorMsg, strings.Join(cmdArgs, " ")),
+				},
+			},
+		}, nil, nil
+	}
+
+	if output == "" {
+		output = "(no log output returned)"
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: fmt.Sprintf("CalicoVPP agent logs:\n\n%s\n\nNamespace: %s\nPod: %s\nContainer: agent\nCommand executed: kubectl %s",
+					output, namespace, podName, strings.Join(cmdArgs, " ")),
+			},
+		},
+	}, nil, nil
+}
+
 // HandleGoBGPCommand is a generic handler for gobgp commands
 func (s *VPPMCPServer) HandleGoBGPCommand(ctx context.Context, input BGPCommandInput, command, commandDescription string) (*mcp.CallToolResult, any, error) {
 	// Log the request details
@@ -2846,6 +3177,32 @@ func main() {
 	}
 	mcp.AddTool(vppServer.server, toolBgpShowNeighbor, func(ctx context.Context, req *mcp.CallToolRequest, input BGPParameterCommandInput) (*mcp.CallToolResult, any, error) {
 		return vppServer.HandleGoBGPParameterCommand(ctx, input, "neighbor %s", "BGP Neighbor Details")
+	})
+
+	// Define bgp_cluster_show_neighbors tool
+	toolBgpClusterShowNeighbors := &mcp.Tool{
+		Name: "bgp_cluster_show_neighbors",
+		Description: "Run 'gobgp neighbor' on every running CalicoVPP pod agent container and return a cluster-wide peering health summary." + bgpNote +
+			"\n\nOptional parameters:\n" +
+			"- namespace: Kubernetes namespace (default: calico-vpp-dataplane)\n\n" +
+			"Use this tool for fast triage before drilling into individual pods.",
+	}
+	mcp.AddTool(vppServer.server, toolBgpClusterShowNeighbors, func(ctx context.Context, req *mcp.CallToolRequest, input BGPClusterInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleBGPClusterNeighbors(ctx, input)
+	})
+
+	// Define bgp_get_agent_logs tool
+	toolBgpGetAgentLogs := &mcp.Tool{
+		Name: "bgp_get_agent_logs",
+		Description: "Fetch recent logs from the calico-vpp 'agent' container for a pod using kubectl logs." + bgpNote +
+			"\n\nRequired parameters:\n" +
+			"- pod_name: The name of the Kubernetes pod running the agent container with gobgp\n\n" +
+			"Optional parameters:\n" +
+			"- tail_lines: Number of log lines to fetch (default: 200, max: 5000)\n\n" +
+			"Useful when peers are missing or unstable and you need API/watcher error context.",
+	}
+	mcp.AddTool(vppServer.server, toolBgpGetAgentLogs, func(ctx context.Context, req *mcp.CallToolRequest, input BGPAgentLogsInput) (*mcp.CallToolResult, any, error) {
+		return vppServer.handleBGPAgentLogs(ctx, input)
 	})
 
 	// Create context with cancellation
