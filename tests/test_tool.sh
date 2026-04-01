@@ -4,7 +4,7 @@
 # Usage (most tools): ./test_tool.sh <pod_name> <tool_name> [parameter1] [parameter2] [parameter3]
 # Usage (no-pod tools): ./test_tool.sh <tool_name> [parameter1] [parameter2] [parameter3]
 
-NO_POD_TOOLS_REGEX='^(vpp_get_pods|vpp_show_daemonset_image|bgp_cluster_show_neighbors)$'
+NO_POD_TOOLS_REGEX='^(vpp_get_pods|vpp_show_daemonset_image)$'
 
 if [[ "$1" =~ $NO_POD_TOOLS_REGEX ]]; then
     POD_NAME=""
@@ -27,7 +27,8 @@ if [ -z "$TOOL_NAME" ] || { [ -z "$POD_NAME" ] && ! [[ "$TOOL_NAME" =~ $NO_POD_T
     echo "Most tools only need pod_name. Some have optional/required parameters:"
     echo "- vpp_get_pods: no pod_name needed"
     echo "- vpp_show_daemonset_image: optional namespace, daemonset_name, container_name"
-    echo "- bgp_cluster_show_neighbors: optional namespace (default: calico-vpp-dataplane)"
+    echo "- get_agent_logs: optional tail_lines (default: 200)"
+    echo "- get_vpp_manager_logs: optional tail_lines (default: 200)"
     echo "- vpp_show_ip_fib: optional fib_index (default: 0)"
     echo "- vpp_show_ip6_fib: optional fib_index (default: 0)"
     echo "- vpp_show_ip_fib_prefix: optional 'fib_index prefix' (default: '0 10.0.0.0/24')"
@@ -41,7 +42,6 @@ if [ -z "$TOOL_NAME" ] || { [ -z "$POD_NAME" ] && ! [[ "$TOOL_NAME" =~ $NO_POD_T
     echo "- bgp_show_ip: optional IP (default: 11.0.0.7)"
     echo "- bgp_show_prefix: optional prefix (default: 11.0.0.0/8)"
     echo "- bgp_show_neighbor: optional neighbor IP (default: 172.18.0.4)"
-    echo "- bgp_get_agent_logs: optional tail_lines (default: 200)"
     echo ""
     echo "Available tools:"
     echo "  - vpp_show_version"
@@ -86,8 +86,8 @@ if [ -z "$TOOL_NAME" ] || { [ -z "$POD_NAME" ] && ! [[ "$TOOL_NAME" =~ $NO_POD_T
     echo "  - bgp_show_ip"
     echo "  - bgp_show_prefix"
     echo "  - bgp_show_neighbor"
-    echo "  - bgp_cluster_show_neighbors"
-    echo "  - bgp_get_agent_logs"
+    echo "  - get_agent_logs"
+    echo "  - get_vpp_manager_logs"
     exit 1
 fi
 
@@ -138,13 +138,6 @@ elif [ "$TOOL_NAME" = "vpp_show_daemonset_image" ]; then
         ARGUMENTS="${ARGUMENTS}}"
     fi
     echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":'"$ARGUMENTS"'}}' >> "$TEMP_REQUESTS"
-elif [ "$TOOL_NAME" = "bgp_cluster_show_neighbors" ]; then
-    # bgp_cluster_show_neighbors doesn't require a pod_name
-    ARGUMENTS="{}"
-    if [ -n "$PARAMETER1" ]; then
-        ARGUMENTS="{\"namespace\":\"$PARAMETER1\"}"
-    fi
-    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":'"$ARGUMENTS"'}}' >> "$TEMP_REQUESTS"
 elif [[ "$TOOL_NAME" =~ ^(bgp_show_ip|bgp_show_prefix|bgp_show_neighbor)$ ]]; then
     # BGP tools that need a parameter (use provided or defaults)
     if [ -n "$PARAMETER1" ]; then
@@ -164,8 +157,8 @@ elif [[ "$TOOL_NAME" =~ ^(bgp_show_ip|bgp_show_prefix|bgp_show_neighbor)$ ]]; th
         esac
     fi
     echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":{"pod_name":"'$POD_NAME'","parameter":"'$PARAM_VALUE'"}}}' >> "$TEMP_REQUESTS"
-elif [[ "$TOOL_NAME" == "bgp_get_agent_logs" ]]; then
-    # bgp_get_agent_logs takes pod_name and optional tail_lines
+elif [[ "$TOOL_NAME" =~ ^(get_agent_logs|get_vpp_manager_logs)$ ]]; then
+    # Log tools take pod_name and optional tail_lines
     TAIL_LINES="${PARAMETER1:-200}"
     echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":{"pod_name":"'$POD_NAME'","tail_lines":'$TAIL_LINES'}}}' >> "$TEMP_REQUESTS"
 elif [[ "$TOOL_NAME" =~ ^(vpp_show_ip_fib|vpp_show_ip6_fib)$ ]]; then

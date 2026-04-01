@@ -13,11 +13,14 @@ Use this workflow when pods have missing BGP peers, peers stuck outside `Establ`
 
 1. Call `vpp_get_pods` to discover CalicoVPP pods.
 
-2. Call `bgp_cluster_show_neighbors` to get a one-shot BGP health summary across all running CalicoVPP pods.
+2. For **each** pod returned, call `bgp_show_neighbors` with `pod_name=<pod-name>` to collect per-node BGP peering status.
+
+3. Aggregate the results across all pods to build a cluster-wide health picture.
 
 Healthy expectation:
-- Every peer is `Establ`
+- Every peer on every pod is `Establ`
 - `Accepted` is greater than `0`
+- Each node should have N-1 IPv4 peers and N-1 IPv6 peers (for N nodes)
 
 ## Step 2: Per-node peering details (`gobgp neigh`)
 
@@ -58,9 +61,9 @@ Call:
 
 Use these when one route or one peer is suspected.
 
-## Step 6: If peers are missing or unstable, inspect agent logs
+## Step 6: If peers are missing or unstable, inspect container logs
 
-Call `bgp_get_agent_logs` with:
+Call `get_agent_logs` with:
 - `pod_name=<pod-name>`
 - `tail_lines=300` (or any suitable value)
 
@@ -68,6 +71,15 @@ Look for:
 - Kubernetes API/watch/list errors
 - Repeated reconnect loops
 - Neighbor bring-up or policy errors
+
+If VPP itself is crashing or misbehaving, also call `get_vpp_manager_logs` with:
+- `pod_name=<pod-name>`
+- `tail_lines=300`
+
+Look for:
+- VPP startup failures or panics
+- vpp-manager daemon errors
+- Interface or driver initialization issues
 
 ## Step 7: Correlate with VPP dataplane tables (optional but recommended)
 
@@ -80,9 +92,10 @@ Look for unresolved/missing routes or incorrect interface addressing.
 
 ## Fast Triage Order
 
-1. `bgp_cluster_show_neighbors`
-2. `bgp_show_neighbors` (on degraded pods)
-3. `bgp_show_global_info`
+1. `vpp_get_pods` (discover all pods)
+2. `bgp_show_neighbors` on each pod (build cluster-wide view)
+3. `bgp_show_global_info` (on degraded pods)
 4. `bgp_show_global_rib4` + `bgp_show_global_rib6`
-5. `bgp_get_agent_logs`
-6. `vpp_show_ip_fib`/`vpp_show_ip6_fib` if forwarding mismatch persists
+5. `get_agent_logs` (when peers are missing or unstable)
+6. `get_vpp_manager_logs` (when VPP itself is crashing)
+7. `vpp_show_ip_fib`/`vpp_show_ip6_fib` if forwarding mismatch persists

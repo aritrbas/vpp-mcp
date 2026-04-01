@@ -31,8 +31,7 @@ This MCP server provides tools to interact with VPP instances for debugging purp
   - Capture cleanup and lock management
   - BGP neighbors and global information
   - BGP RIB queries (IPv4/IPv6, IPs, prefixes)
-  - Cluster-wide BGP neighbor health summary
-  - CalicoVPP agent log retrieval for BGP triage
+  - Container log retrieval (agent and vpp-manager)
 - **Official MCP Go SDK**: Uses the official Model Context Protocol Go SDK maintained by Google
 - **Go Implementation**: Fast, efficient, and easy to deploy
 - **Extensible Architecture**: Easy to add more VPP debugging tools
@@ -328,24 +327,25 @@ For remote access, replace `localhost` with the server's IP address or hostname.
   - `pod_name` (required): Name of the Kubernetes pod running the agent container with gobgp
   - `parameter` (required): The neighbor IP address  to query
 
-#### `bgp_cluster_show_neighbors`
-- **Description**: Run `gobgp neighbor` on every running CalicoVPP pod and summarize cluster peering health
-- **Command**: `kubectl exec -n <namespace> -c agent <pod> -- gobgp neighbor` (executed per pod)
-- **Parameters**:
-  - `namespace` (optional): Kubernetes namespace (default: `calico-vpp-dataplane`)
-
-#### `bgp_get_agent_logs`
+#### `get_agent_logs`
 - **Description**: Fetch recent logs from the CalicoVPP `agent` container for a pod
 - **Command**: `kubectl logs -n calico-vpp-dataplane <pod> -c agent --tail <tail_lines>`
 - **Parameters**:
-  - `pod_name` (required): Name of the Kubernetes pod running the agent container with gobgp
+  - `pod_name` (required): Name of the Kubernetes pod
+  - `tail_lines` (optional): Number of recent lines to fetch (default: `200`, max: `5000`)
+
+#### `get_vpp_manager_logs`
+- **Description**: Fetch recent logs from the CalicoVPP `vpp` container (vpp-manager daemon) for a pod
+- **Command**: `kubectl logs -n calico-vpp-dataplane <pod> -c vpp --tail <tail_lines>`
+- **Parameters**:
+  - `pod_name` (required): Name of the Kubernetes pod
   - `tail_lines` (optional): Number of recent lines to fetch (default: `200`, max: `5000`)
 
 ### CalicoVPP BGP Troubleshooting Workflow
 
 This workflow mirrors the upstream troubleshooting guide and is adapted to this MCP server's toolset:
 - Upstream reference: https://github.com/projectcalico/vpp-dataplane/blob/master/docs/bgp/troubleshooting.md
-- Local runbook: [docs/BGP_TROUBLESHOOTING_WORKFLOW.md](docs/BGP_TROUBLESHOOTING_WORKFLOW.md)
+- Local runbook: [skills/BGP_TROUBLESHOOTING_WORKFLOW.md](skills/BGP_TROUBLESHOOTING_WORKFLOW.md)
 
 ### Kubernetes Pod Management
 
@@ -446,6 +446,9 @@ vpp-mcp/
 │   ├── QUICK_START.md          # Quick reference
 │   ├── REMOTE_ACCESS.md        # Remote access guide
 │   └── TEST_SUMMARY.md         # Test results
+├── skills/                      # LLM workflow skills
+│   └── bgp-troubleshoot.md      # BGP triage runbook
+│   └── cluster-healthcheck.md   # Cluster health check
 ├── tests/                       # Test scripts
 │   ├── test_mcp_server.sh      # Test MCP server setup in stdio transport
 │   ├── demo_test.sh            # Demo all tools

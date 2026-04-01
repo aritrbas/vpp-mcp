@@ -76,7 +76,8 @@ http://localhost:8080/sse
 
 Remote clients can use the full current toolset (**44 tools**):
 - 35 VPP tools (including `vpp_show_daemonset_image`)
-- 9 BGP tools (including `bgp_cluster_show_neighbors` and `bgp_get_agent_logs`)
+- 7 BGP tools
+- 2 Log tools (`get_agent_logs` and `get_vpp_manager_logs`)
 
 ## Troubleshooting
 

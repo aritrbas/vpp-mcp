@@ -572,11 +572,41 @@
       }
     }
   },
-  "41_call_standalone_show_version": {
-    "description": "Call vpp_show_version in standalone mode (local VPP daemon)",
+  "41_call_get_agent_logs": {
+    "description": "Call get_agent_logs tool",
     "request": {
       "jsonrpc": "2.0",
       "id": 41,
+      "method": "tools/call",
+      "params": {
+        "name": "get_agent_logs",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME",
+          "tail_lines": 200
+        }
+      }
+    }
+  },
+  "42_call_get_vpp_manager_logs": {
+    "description": "Call get_vpp_manager_logs tool",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 42,
+      "method": "tools/call",
+      "params": {
+        "name": "get_vpp_manager_logs",
+        "arguments": {
+          "pod_name": "YOUR_POD_NAME",
+          "tail_lines": 200
+        }
+      }
+    }
+  },
+  "43_call_standalone_show_version": {
+    "description": "Call vpp_show_version in standalone mode (local VPP daemon)",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 43,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_version",
@@ -586,11 +616,11 @@
       }
     }
   },
-  "42_call_standalone_show_int_custom_socket": {
+  "44_call_standalone_show_int_custom_socket": {
     "description": "Call vpp_show_int in standalone mode with custom socket path",
     "request": {
       "jsonrpc": "2.0",
-      "id": 42,
+      "id": 44,
       "method": "tools/call",
       "params": {
         "name": "vpp_show_int",

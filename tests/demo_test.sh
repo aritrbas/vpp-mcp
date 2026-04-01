@@ -53,7 +53,7 @@ test_tool() {
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
     # Send requests and capture only stdout (JSON)
-    if [[ "$tool_name" =~ ^(vpp_get_pods|vpp_show_daemonset_image|bgp_cluster_show_neighbors)$ ]]; then
+    if [[ "$tool_name" =~ ^(vpp_get_pods|vpp_show_daemonset_image)$ ]]; then
         # Tools that don't require pod_name
         RESULT=$(
             (
@@ -176,8 +176,8 @@ test_tool() {
                 sleep 1.5
             ) | timeout 5s ./vpp-mcp-server 2>/dev/null
         )
-    elif [[ "$tool_name" == "bgp_get_agent_logs" ]]; then
-        # Fetch recent agent logs for BGP troubleshooting
+    elif [[ "$tool_name" =~ ^(get_agent_logs|get_vpp_manager_logs)$ ]]; then
+        # Fetch recent container logs
         TAIL_LINES="200"
         RESULT=$(
             (
@@ -263,8 +263,8 @@ test_tool "bgp_show_global_rib6" "BGP IPv6 RIB Information"
 test_tool "bgp_show_ip" "BGP RIB Entry for IP (parameter=11.0.0.7)"
 test_tool "bgp_show_prefix" "BGP RIB Entry for Prefix (parameter=11.0.0.0/8)"
 test_tool "bgp_show_neighbor" "BGP Neighbor Details (parameter=172.18.0.4)"
-test_tool "bgp_cluster_show_neighbors" "BGP Cluster Neighbor Summary"
-test_tool "bgp_get_agent_logs" "BGP Agent Logs (tail_lines=200)"
+test_tool "get_agent_logs" "Agent Container Logs (tail_lines=200)"
+test_tool "get_vpp_manager_logs" "VPP Manager Container Logs (tail_lines=200)"
 
 echo "=========================================="
 echo "✓ Demo completed!"
