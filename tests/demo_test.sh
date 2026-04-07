@@ -37,169 +37,39 @@ else
 fi
 
 echo "=========================================="
-echo "VPP MCP Server Demo"
+echo "VPP MCP Server Demo (4-Tool Architecture)"
 echo "=========================================="
-echo -e "${YELLOW}Testing all 44 MCP server tools against pod: ${GREEN}$POD_NAME${NC}"
+echo -e "${YELLOW}Testing all 4 MCP tools with representative commands against pod: ${GREEN}$POD_NAME${NC}"
 echo ""
 
-# Function to test a tool
-test_tool() {
+PASS_COUNT=0
+FAIL_COUNT=0
+TEST_COUNT=0
+
+# Function to call a tool with given arguments JSON
+call_tool() {
     local tool_name=$1
-    local description=$2
+    local arguments=$2
+    local description=$3
+    local timeout_val=${4:-5s}
+    local sleep_val=${5:-1.5}
+    
+    TEST_COUNT=$((TEST_COUNT + 1))
     
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "Testing: $description"
+    echo "Test $TEST_COUNT: $description"
     echo "Tool: $tool_name"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
-    # Send requests and capture only stdout (JSON)
-    if [[ "$tool_name" =~ ^(vpp_get_pods|vpp_show_daemonset_image)$ ]]; then
-        # Tools that don't require pod_name
-        RESULT=$(
-            (
-                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
-                sleep 0.3
-                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{}}}";
-                sleep 1.5
-            ) | timeout 5s ./vpp-mcp-server 2>/dev/null
-        )
-    elif [[ "$tool_name" == "vpp_show_hardware_interface" ]]; then
-        # Specific hardware interface lookup requires interface_name
-        INTERFACE_NAME="host-eth0"
-        RESULT=$(
-            (
-                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
-                sleep 0.3
-                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\",\"interface_name\":\"$INTERFACE_NAME\"}}}";
-                sleep 1.5
-            ) | timeout 5s ./vpp-mcp-server 2>/dev/null
-        )
-    elif [[ "$tool_name" =~ ^(vpp_show_ip_fib|vpp_show_ip6_fib)$ ]]; then
-        # Special case for IP FIB tools which need fib_index
-        FIB_INDEX="0"
-        RESULT=$(
-            (
-                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
-                sleep 0.3
-                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\",\"fib_index\":\"$FIB_INDEX\"}}}";
-                sleep 1.5
-            ) | timeout 5s ./vpp-mcp-server 2>/dev/null
-        )
-    elif [[ "$tool_name" == "vpp_show_ip_fib_prefix" ]]; then
-        # Special case for vpp_show_ip_fib_prefix which needs fib_index and prefix
-        FIB_INDEX="0"
-        PREFIX="10.0.0.0/24"
-        RESULT=$(
-            (
-                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
-                sleep 0.3
-                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\",\"fib_index\":\"$FIB_INDEX\",\"prefix\":\"$PREFIX\"}}}";
-                sleep 1.5
-            ) | timeout 5s ./vpp-mcp-server 2>/dev/null
-        )
-    elif [[ "$tool_name" == "vpp_show_ip6_fib_prefix" ]]; then
-        # Special case for vpp_show_ip6_fib_prefix which needs fib_index and prefix
-        FIB_INDEX="0"
-        PREFIX="2001:db8::/32"
-        RESULT=$(
-            (
-                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
-                sleep 0.3
-                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\",\"fib_index\":\"$FIB_INDEX\",\"prefix\":\"$PREFIX\"}}}";
-                sleep 1.5
-            ) | timeout 5s ./vpp-mcp-server 2>/dev/null
-        )
-    elif [[ "$tool_name" == "vpp_capture_cleanup" ]]; then
-        # vpp_capture_cleanup takes pod_name like a normal tool
-        RESULT=$(
-            (
-                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
-                sleep 0.3
-                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\"}}}";
-                sleep 1.5
-            ) | timeout 5s ./vpp-mcp-server 2>/dev/null
-        )
-    elif [[ "$tool_name" =~ ^(vpp_trace|vpp_dispatch)$ ]]; then
-        # Special case for trace tools with count and interface
-        COUNT="1000"
-        INTERFACE="af_packet"
-        RESULT=$(
-            (
-                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
-                sleep 0.3
-                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\",\"count\":$COUNT,\"interface\":\"$INTERFACE\"}}}";
-                sleep 32
-            ) | timeout 35s ./vpp-mcp-server 2>/dev/null
-        )
-    elif [[ "$tool_name" == "vpp_pcap" ]]; then
-        # Special case for vpp_pcap with count and interface
-        COUNT="1000"
-        INTERFACE="any"
-        RESULT=$(
-            (
-                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
-                sleep 0.3
-                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\",\"count\":$COUNT,\"interface\":\"$INTERFACE\"}}}";
-                sleep 32
-            ) | timeout 35s ./vpp-mcp-server 2>/dev/null
-        )        
-    elif [[ "$tool_name" == "bgp_show_prefix" ]]; then
-        # Special case for BGP prefix tool which needs pod_name and prefix
-        PREFIX="11.0.0.0/8"  # Example prefix
-        RESULT=$(
-            (
-                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
-                sleep 0.3
-                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\",\"parameter\":\"$PREFIX\"}}}";
-                sleep 1.5
-            ) | timeout 5s ./vpp-mcp-server 2>/dev/null
-        )
-    elif [[ "$tool_name" == "bgp_show_ip" ]]; then
-        # Special case for BGP IP tool which needs pod_name and IP
-        IP="11.0.0.7"  # Example IP
-        RESULT=$(
-            (
-                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
-                sleep 0.3
-                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\",\"parameter\":\"$IP\"}}}";
-                sleep 1.5
-            ) | timeout 5s ./vpp-mcp-server 2>/dev/null
-        )
-    elif [[ "$tool_name" == "bgp_show_neighbor" ]]; then
-        # Special case for BGP neighbor tool which needs pod_name and neighbor_ip
-        NEIGHBOR_IP="172.18.0.4"  # Example neighbor IP
-        RESULT=$(
-            (
-                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
-                sleep 0.3
-                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\",\"parameter\":\"$NEIGHBOR_IP\"}}}";
-                sleep 1.5
-            ) | timeout 5s ./vpp-mcp-server 2>/dev/null
-        )
-    elif [[ "$tool_name" =~ ^(get_agent_logs|get_vpp_manager_logs)$ ]]; then
-        # Fetch recent container logs
-        TAIL_LINES="200"
-        RESULT=$(
-            (
-                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
-                sleep 0.3
-                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\",\"tail_lines\":$TAIL_LINES}}}";
-                sleep 1.5
-            ) | timeout 5s ./vpp-mcp-server 2>/dev/null
-        )
-    else
-        # Normal case for tools that take only pod_name
-        RESULT=$(
-            (
-                echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
-                sleep 0.3
-                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":{\"pod_name\":\"$POD_NAME\"}}}";
-                sleep 1.5
-            ) | timeout 5s ./vpp-mcp-server 2>/dev/null
-        )
-    fi
+    RESULT=$(
+        (
+            echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"demo","version":"1.0"}}}';
+            sleep 0.3
+            echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool_name\",\"arguments\":$arguments}}";
+            sleep $sleep_val
+        ) | timeout $timeout_val ./vpp-mcp-server 2>/dev/null
+    )
     
-    # Extract the text content from the response
     OUTPUT=$(echo "$RESULT" | jq -r 'select(.id==2) | .result.content[].text' 2>/dev/null || echo "")
     
     if [ -n "$OUTPUT" ]; then
@@ -211,68 +81,93 @@ test_tool() {
         fi
         echo ""
         echo "✅ SUCCESS"
+        PASS_COUNT=$((PASS_COUNT + 1))
     else
         echo "❌ FAILED - No output received"
         echo "Raw response:"
         echo "$RESULT" | jq '.' 2>/dev/null || echo "$RESULT"
+        FAIL_COUNT=$((FAIL_COUNT + 1))
     fi
     
     echo ""
 }
 
-# Test all tools
-test_tool "vpp_show_version" "VPP Version"
-test_tool "vpp_show_int" "VPP Interfaces"
-test_tool "vpp_show_int_addr" "VPP Interface Address Information"
-test_tool "vpp_show_hardware_interfaces" "VPP Hardware Interface Information"
-test_tool "vpp_show_hardware_interface" "VPP Specific Hardware Interface (interface_name=host-eth0)"
-test_tool "vpp_show_errors" "VPP Error Counters"
-test_tool "vpp_show_session_verbose" "VPP Sessions (verbose)"
-test_tool "vpp_show_npol_rules" "VPP NPOL Rules"
-test_tool "vpp_show_npol_policies" "VPP NPOL Policies"
-test_tool "vpp_show_npol_ipset" "VPP NPOL IPset"
-test_tool "vpp_show_npol_interfaces" "VPP NPOL Interfaces"
-test_tool "vpp_trace" "VPP Trace Capture"
-test_tool "vpp_pcap" "VPP PCAP Capture"
-test_tool "vpp_dispatch" "VPP Dispatch Trace"
-test_tool "vpp_capture_cleanup" "VPP Capture Cleanup"
-test_tool "vpp_get_pods" "VPP Get Pods"
-test_tool "vpp_clear_errors" "VPP Clear Errors"
-test_tool "vpp_tcp_stats" "VPP TCP Statistics"
-test_tool "vpp_session_stats" "VPP Session Statistics"
-test_tool "vpp_get_logs" "VPP Logs"
-test_tool "vpp_show_cnat_translation" "VPP CNAT Translation"
-test_tool "vpp_show_cnat_session" "VPP CNAT Session"
-test_tool "vpp_clear_run" "VPP Clear Runtime Stats"
-test_tool "vpp_show_run" "VPP Runtime Statistics"
-test_tool "vpp_show_ipip_tunnel" "VPP IPIP Tunnel Status"
-test_tool "vpp_show_vxlan_tunnel" "VPP VXLAN Tunnel Status"
-test_tool "vpp_show_tun_all" "VPP Tunnel Interfaces"
-test_tool "vpp_show_tun_interface" "VPP Specific Tunnel Interface (interface_name=tun1)"
-test_tool "vpp_show_ip_table" "VPP IPv4 VRF Tables"
-test_tool "vpp_show_ip6_table" "VPP IPv6 VRF Tables"
-test_tool "vpp_show_ip_fib" "VPP IPv4 FIB Table (fib_index=0)"
-test_tool "vpp_show_ip6_fib" "VPP IPv6 FIB Table (fib_index=0)"
-test_tool "vpp_show_ip_fib_prefix" "VPP IPv4 FIB Prefix (fib_index=0, prefix=10.0.0.0/24)"
-test_tool "vpp_show_ip6_fib_prefix" "VPP IPv6 FIB Prefix (fib_index=0, prefix=2001:db8::/32)"
-test_tool "vpp_show_daemonset_image" "Calico VPP Daemonset Image"
-test_tool "bgp_show_neighbors" "BGP Neighbors"
-test_tool "bgp_show_global_info" "BGP Global Information"
-test_tool "bgp_show_global_rib4" "BGP IPv4 RIB Information"
-test_tool "bgp_show_global_rib6" "BGP IPv6 RIB Information"
-test_tool "bgp_show_ip" "BGP RIB Entry for IP (parameter=11.0.0.7)"
-test_tool "bgp_show_prefix" "BGP RIB Entry for Prefix (parameter=11.0.0.0/8)"
-test_tool "bgp_show_neighbor" "BGP Neighbor Details (parameter=172.18.0.4)"
-test_tool "get_agent_logs" "Agent Container Logs (tail_lines=200)"
-test_tool "get_vpp_manager_logs" "VPP Manager Container Logs (tail_lines=200)"
+# =========================================================================
+# TOOL 1: list
+# =========================================================================
+echo -e "${YELLOW}=== Testing: list tool ===${NC}"
+call_tool "list" "{}" "List all available commands"
+
+# =========================================================================
+# TOOL 2: cluster
+# =========================================================================
+echo -e "${YELLOW}=== Testing: cluster tool ===${NC}"
+call_tool "cluster" "{\"command\":\"get_pods\"}" "cluster: get_pods"
+call_tool "cluster" "{\"command\":\"get_nodes\"}" "cluster: get_nodes"
+call_tool "cluster" "{\"command\":\"get_namespaces\"}" "cluster: get_namespaces"
+call_tool "cluster" "{\"command\":\"get_configmap\"}" "cluster: get_configmap (default: calico-vpp-config)"
+call_tool "cluster" "{\"command\":\"get_daemonset\",\"resource_name\":\"calico-vpp-node\"}" "cluster: get_daemonset"
+call_tool "cluster" "{\"command\":\"get_events\"}" "cluster: get_events"
+call_tool "cluster" "{\"command\":\"get_services\"}" "cluster: get_services"
+call_tool "cluster" "{\"command\":\"top_nodes\"}" "cluster: top_nodes"
+call_tool "cluster" "{\"command\":\"top_pods\"}" "cluster: top_pods"
+call_tool "cluster" "{\"command\":\"logs\",\"pod_name\":\"$POD_NAME\",\"container\":\"agent\",\"tail_lines\":50}" "cluster: logs (agent container)"
+call_tool "cluster" "{\"command\":\"logs\",\"pod_name\":\"$POD_NAME\",\"container\":\"vpp\",\"tail_lines\":50}" "cluster: logs (vpp container)"
+call_tool "cluster" "{\"command\":\"describe_pod\",\"pod_name\":\"$POD_NAME\"}" "cluster: describe_pod"
+call_tool "cluster" "{\"command\":\"exec\",\"pod_name\":\"$POD_NAME\",\"container\":\"vpp\",\"resource_name\":\"ip a\"}" "cluster: exec (read-only command)"
+
+# =========================================================================
+# TOOL 3: vppctl
+# =========================================================================
+echo -e "${YELLOW}=== Testing: vppctl tool ===${NC}"
+call_tool "vppctl" "{\"command\":\"show version\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show version"
+call_tool "vppctl" "{\"command\":\"show int\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show int"
+call_tool "vppctl" "{\"command\":\"show int addr\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show int addr"
+call_tool "vppctl" "{\"command\":\"show hardware-interfaces\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show hardware-interfaces"
+call_tool "vppctl" "{\"command\":\"show errors\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show errors"
+call_tool "vppctl" "{\"command\":\"show session verbose 2\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show session verbose 2"
+call_tool "vppctl" "{\"command\":\"show npol rules\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show npol rules"
+call_tool "vppctl" "{\"command\":\"show npol policies\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show npol policies"
+call_tool "vppctl" "{\"command\":\"show npol ipset\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show npol ipset"
+call_tool "vppctl" "{\"command\":\"show npol interfaces\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show npol interfaces"
+call_tool "vppctl" "{\"command\":\"show tcp stats\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show tcp stats"
+call_tool "vppctl" "{\"command\":\"show session stats\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show session stats"
+call_tool "vppctl" "{\"command\":\"show logging\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show logging"
+call_tool "vppctl" "{\"command\":\"show cnat translation\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show cnat translation"
+call_tool "vppctl" "{\"command\":\"show cnat session\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show cnat session"
+call_tool "vppctl" "{\"command\":\"show run\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show run"
+call_tool "vppctl" "{\"command\":\"show ipip tunnel\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show ipip tunnel"
+call_tool "vppctl" "{\"command\":\"show vxlan tunnel\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show vxlan tunnel"
+call_tool "vppctl" "{\"command\":\"show tun\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show tun"
+call_tool "vppctl" "{\"command\":\"show ip table\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show ip table"
+call_tool "vppctl" "{\"command\":\"show ip6 table\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show ip6 table"
+call_tool "vppctl" "{\"command\":\"show ip fib index 0\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show ip fib index 0"
+call_tool "vppctl" "{\"command\":\"show ip6 fib index 0\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show ip6 fib index 0"
+call_tool "vppctl" "{\"command\":\"show ip fib index 0 10.0.0.0/24\",\"pod_name\":\"$POD_NAME\"}" "vppctl: show ip fib index 0 10.0.0.0/24"
+call_tool "vppctl" "{\"command\":\"capture_cleanup\",\"pod_name\":\"$POD_NAME\"}" "vppctl: capture_cleanup"
+
+# Capture tools (longer timeout)
+call_tool "vppctl" "{\"command\":\"trace\",\"pod_name\":\"$POD_NAME\",\"count\":1000,\"interface\":\"af_packet\"}" "vppctl: trace capture" "35s" "32"
+call_tool "vppctl" "{\"command\":\"pcap\",\"pod_name\":\"$POD_NAME\",\"count\":1000,\"interface\":\"any\"}" "vppctl: pcap capture" "35s" "32"
+call_tool "vppctl" "{\"command\":\"dispatch\",\"pod_name\":\"$POD_NAME\",\"count\":1000,\"interface\":\"af_packet\"}" "vppctl: dispatch capture" "35s" "32"
+call_tool "vppctl" "{\"command\":\"capture_cleanup\",\"pod_name\":\"$POD_NAME\"}" "vppctl: capture_cleanup (post-capture)"
+
+# =========================================================================
+# TOOL 4: gobgp
+# =========================================================================
+echo -e "${YELLOW}=== Testing: gobgp tool ===${NC}"
+call_tool "gobgp" "{\"command\":\"neighbor\",\"pod_name\":\"$POD_NAME\"}" "gobgp: neighbor"
+call_tool "gobgp" "{\"command\":\"global\",\"pod_name\":\"$POD_NAME\"}" "gobgp: global"
+call_tool "gobgp" "{\"command\":\"global rib -a ipv4\",\"pod_name\":\"$POD_NAME\"}" "gobgp: global rib -a ipv4"
+call_tool "gobgp" "{\"command\":\"global rib -a ipv6\",\"pod_name\":\"$POD_NAME\"}" "gobgp: global rib -a ipv6"
+call_tool "gobgp" "{\"command\":\"global rib 11.0.0.0/8\",\"pod_name\":\"$POD_NAME\"}" "gobgp: global rib 11.0.0.0/8"
 
 echo "=========================================="
 echo "✓ Demo completed!"
 echo "=========================================="
 echo ""
-echo "📊 All 44 tools tested successfully"
-echo "🎯 MCP server is working correctly"
+echo "Results: $PASS_COUNT passed, $FAIL_COUNT failed out of $TEST_COUNT tests"
 echo ""
 echo "Next steps:"
-echo "  • Use with Claude Desktop or other MCP clients"
-echo "  • See example_mcp_requests.json for API reference"
+echo "  - Use with Claude Desktop, Windsurf, or other MCP clients"
+echo "  - See examples/example_mcp_requests.json for API reference"

@@ -1,93 +1,45 @@
 #!/bin/bash
 
-# Quick tool testing script for VPP MCP Server
-# Usage (most tools): ./test_tool.sh <pod_name> <tool_name> [parameter1] [parameter2] [parameter3]
-# Usage (no-pod tools): ./test_tool.sh <tool_name> [parameter1] [parameter2] [parameter3]
+# Quick tool testing script for VPP MCP Server (4-tool architecture)
+# Usage:
+#   ./test_tool.sh <pod_name> vppctl "<command>"
+#   ./test_tool.sh <pod_name> gobgp "<command>"
+#   ./test_tool.sh cluster <command> [resource_name]
+#   ./test_tool.sh list
 
-NO_POD_TOOLS_REGEX='^(vpp_get_pods|vpp_show_daemonset_image)$'
+NO_POD_TOOLS_REGEX='^(list|cluster)$'
 
 if [[ "$1" =~ $NO_POD_TOOLS_REGEX ]]; then
     POD_NAME=""
     TOOL_NAME="$1"
     PARAMETER1="$2"
     PARAMETER2="$3"
-    PARAMETER3="$4"
 else
     POD_NAME="$1"
     TOOL_NAME="$2"
     PARAMETER1="$3"
     PARAMETER2="$4"
-    PARAMETER3="$5"
 fi
 
 if [ -z "$TOOL_NAME" ] || { [ -z "$POD_NAME" ] && ! [[ "$TOOL_NAME" =~ $NO_POD_TOOLS_REGEX ]]; }; then
-    echo "Usage (most tools): $0 <pod_name> <tool_name> [parameter1] [parameter2] [parameter3]"
-    echo "Usage (no-pod tools): $0 <tool_name> [parameter1] [parameter2] [parameter3]"
+    echo "Usage:"
+    echo "  $0 <pod_name> vppctl \"<command>\"          # Run vppctl command"
+    echo "  $0 <pod_name> gobgp \"<command>\"            # Run gobgp command"
+    echo "  $0 cluster <command> [resource_name]        # Run cluster command"
+    echo "  $0 list                                     # List all commands"
     echo ""
-    echo "Most tools only need pod_name. Some have optional/required parameters:"
-    echo "- vpp_get_pods: no pod_name needed"
-    echo "- vpp_show_daemonset_image: optional namespace, daemonset_name, container_name"
-    echo "- get_agent_logs: optional tail_lines (default: 200)"
-    echo "- get_vpp_manager_logs: optional tail_lines (default: 200)"
-    echo "- vpp_show_ip_fib: optional fib_index (default: 0)"
-    echo "- vpp_show_ip6_fib: optional fib_index (default: 0)"
-    echo "- vpp_show_ip_fib_prefix: optional 'fib_index prefix' (default: '0 10.0.0.0/24')"
-    echo "- vpp_show_ip6_fib_prefix: optional 'fib_index prefix' (default: '0 2001:db8::/32')"
-    echo "- vpp_trace: optional 'count interface' (default: 1000 af-packet)"
-    echo "- vpp_pcap: optional 'count interface' (default: 1000 any)"
-    echo "- vpp_dispatch: optional 'count interface' (default: 1000 af-packet)"
-    echo "- vpp_capture_cleanup: no extra parameters needed"
-    echo "- vpp_show_hardware_interface: required interface_name (e.g., host-eth0)"
-    echo "- vpp_show_tun_interface: required interface_name (e.g., tun1)"
-    echo "- bgp_show_ip: optional IP (default: 11.0.0.7)"
-    echo "- bgp_show_prefix: optional prefix (default: 11.0.0.0/8)"
-    echo "- bgp_show_neighbor: optional neighbor IP (default: 172.18.0.4)"
+    echo "Examples:"
+    echo "  $0 my-pod vppctl \"show version\""
+    echo "  $0 my-pod vppctl \"show ip fib index 0\""
+    echo "  $0 my-pod vppctl trace                      # capture (uses count/timeout defaults)"
+    echo "  $0 my-pod gobgp neighbor"
+    echo "  $0 my-pod gobgp \"global rib -a ipv4\""
+    echo "  $0 cluster get_pods"
+    echo "  $0 cluster logs my-pod                      # logs for pod (container default: agent)"
+    echo "  $0 cluster get_configmap"
+    echo "  $0 list"
     echo ""
-    echo "Available tools:"
-    echo "  - vpp_show_version"
-    echo "  - vpp_show_int"
-    echo "  - vpp_show_int_addr"
-    echo "  - vpp_show_hardware_interfaces"
-    echo "  - vpp_show_hardware_interface"
-    echo "  - vpp_show_errors"
-    echo "  - vpp_show_session_verbose"
-    echo "  - vpp_show_npol_rules"
-    echo "  - vpp_show_npol_policies"
-    echo "  - vpp_show_npol_ipset"
-    echo "  - vpp_show_npol_interfaces"
-    echo "  - vpp_trace"
-    echo "  - vpp_pcap"
-    echo "  - vpp_dispatch"
-    echo "  - vpp_capture_cleanup"
-    echo "  - vpp_get_pods"
-    echo "  - vpp_clear_errors"
-    echo "  - vpp_tcp_stats"
-    echo "  - vpp_session_stats"
-    echo "  - vpp_get_logs"
-    echo "  - vpp_show_cnat_translation"
-    echo "  - vpp_show_cnat_session"
-    echo "  - vpp_clear_run"
-    echo "  - vpp_show_run"
-    echo "  - vpp_show_ipip_tunnel"
-    echo "  - vpp_show_vxlan_tunnel"
-    echo "  - vpp_show_tun_all"
-    echo "  - vpp_show_tun_interface"
-    echo "  - vpp_show_ip_table"
-    echo "  - vpp_show_ip6_table"
-    echo "  - vpp_show_ip_fib"
-    echo "  - vpp_show_ip6_fib"
-    echo "  - vpp_show_ip_fib_prefix"
-    echo "  - vpp_show_ip6_fib_prefix"
-    echo "  - vpp_show_daemonset_image"
-    echo "  - bgp_show_neighbors"
-    echo "  - bgp_show_global_info"
-    echo "  - bgp_show_global_rib4"
-    echo "  - bgp_show_global_rib6"
-    echo "  - bgp_show_ip"
-    echo "  - bgp_show_prefix"
-    echo "  - bgp_show_neighbor"
-    echo "  - get_agent_logs"
-    echo "  - get_vpp_manager_logs"
+    echo "Available tools: list, cluster, vppctl, gobgp"
     exit 1
 fi
 
@@ -103,9 +55,6 @@ fi
 if [ -n "$PARAMETER2" ]; then
     echo "Parameter 2: $PARAMETER2"
 fi
-if [ -n "$PARAMETER3" ]; then
-    echo "Parameter 3: $PARAMETER3"
-fi
 echo ""
 
 # Create temporary file for requests
@@ -114,110 +63,77 @@ TEMP_REQUESTS=$(mktemp)
 # Write initialize request to temp file
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0.0"}}}' > "$TEMP_REQUESTS"
 
-# Handle different tool types for the second request
-if [ "$TOOL_NAME" = "vpp_get_pods" ]; then
-    # vpp_get_pods doesn't need a pod_name
-    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":{}}}' >> "$TEMP_REQUESTS"
-elif [ "$TOOL_NAME" = "vpp_show_daemonset_image" ]; then
-    # vpp_show_daemonset_image doesn't require a pod_name
-    ARGUMENTS="{}"
-    if [ -n "$PARAMETER1" ] || [ -n "$PARAMETER2" ] || [ -n "$PARAMETER3" ]; then
-        ARGUMENTS="{"
-        SEP=""
-        if [ -n "$PARAMETER1" ]; then
-            ARGUMENTS="${ARGUMENTS}\"namespace\":\"$PARAMETER1\""
-            SEP=","
-        fi
-        if [ -n "$PARAMETER2" ]; then
-            ARGUMENTS="${ARGUMENTS}${SEP}\"daemonset_name\":\"$PARAMETER2\""
-            SEP=","
-        fi
-        if [ -n "$PARAMETER3" ]; then
-            ARGUMENTS="${ARGUMENTS}${SEP}\"container_name\":\"$PARAMETER3\""
-        fi
-        ARGUMENTS="${ARGUMENTS}}"
-    fi
-    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":'"$ARGUMENTS"'}}' >> "$TEMP_REQUESTS"
-elif [[ "$TOOL_NAME" =~ ^(bgp_show_ip|bgp_show_prefix|bgp_show_neighbor)$ ]]; then
-    # BGP tools that need a parameter (use provided or defaults)
-    if [ -n "$PARAMETER1" ]; then
-        PARAM_VALUE="$PARAMETER1"
-    else
-        # Use defaults
-        case "$TOOL_NAME" in
-            "bgp_show_ip")
-                PARAM_VALUE="11.0.0.7"
-                ;;
-            "bgp_show_prefix")
-                PARAM_VALUE="11.0.0.0/8"
-                ;;
-            "bgp_show_neighbor")
-                PARAM_VALUE="172.18.0.4"
-                ;;
-        esac
-    fi
-    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":{"pod_name":"'$POD_NAME'","parameter":"'$PARAM_VALUE'"}}}' >> "$TEMP_REQUESTS"
-elif [[ "$TOOL_NAME" =~ ^(get_agent_logs|get_vpp_manager_logs)$ ]]; then
-    # Log tools take pod_name and optional tail_lines
-    TAIL_LINES="${PARAMETER1:-200}"
-    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":{"pod_name":"'$POD_NAME'","tail_lines":'$TAIL_LINES'}}}' >> "$TEMP_REQUESTS"
-elif [[ "$TOOL_NAME" =~ ^(vpp_show_ip_fib|vpp_show_ip6_fib)$ ]]; then
-    # FIB tools that need fib_index (use parameter if provided, otherwise default to 0)
-    FIB_INDEX="${PARAMETER1:-0}"
-    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":{"pod_name":"'$POD_NAME'","fib_index":"'$FIB_INDEX'"}}}' >> "$TEMP_REQUESTS"
-elif [[ "$TOOL_NAME" =~ ^(vpp_show_ip_fib_prefix|vpp_show_ip6_fib_prefix)$ ]]; then
-    # FIB prefix tools that need fib_index and prefix
-    # Check if both parameters are provided
-    if [ -n "$PARAMETER1" ] && [ -n "$PARAMETER2" ]; then
-        FIB_INDEX="$PARAMETER1"
-        PREFIX="$PARAMETER2"
-    # Check if only one parameter is provided (assume it's a combined string)
-    elif [ -n "$PARAMETER1" ] && [[ "$PARAMETER1" == *" "* ]]; then
-        # Extract fib_index and prefix from parameter (format: "fib_index prefix")
-        FIB_INDEX=$(echo "$PARAMETER1" | cut -d' ' -f1)
-        PREFIX=$(echo "$PARAMETER1" | cut -d' ' -f2-)
-    # Use defaults
-    else
-        FIB_INDEX="${PARAMETER1:-0}"  # Use PARAMETER1 if provided, otherwise 0
-        if [[ "$TOOL_NAME" == "vpp_show_ip_fib_prefix" ]]; then
-            PREFIX="${PARAMETER2:-10.0.0.0/24}"
+# Build tool call based on tool type
+case "$TOOL_NAME" in
+    list)
+        echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"list","arguments":{}}}' >> "$TEMP_REQUESTS"
+        ;;
+    cluster)
+        COMMAND="${PARAMETER1:-get_pods}"
+        if [[ "$COMMAND" == "logs" || "$COMMAND" == "describe_pod" ]]; then
+            # These need pod_name from PARAMETER2
+            CLUSTER_POD="${PARAMETER2:-}"
+            if [ -z "$CLUSTER_POD" ]; then
+                echo "Error: '$COMMAND' requires a pod name as the next argument"
+                exit 1
+            fi
+            echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"cluster\",\"arguments\":{\"command\":\"$COMMAND\",\"pod_name\":\"$CLUSTER_POD\"}}}" >> "$TEMP_REQUESTS"
+        elif [[ "$COMMAND" == "exec" ]]; then
+            # exec needs pod_name and command (resource_name)
+            CLUSTER_POD="${PARAMETER2:-}"
+            if [ -z "$CLUSTER_POD" ]; then
+                echo "Error: 'exec' requires a pod name as the next argument"
+                exit 1
+            fi
+            # For exec, we expect a third parameter as the command
+            shift 3  # Skip script name, 'cluster', 'exec', pod_name
+            EXEC_COMMAND="$@"
+            if [ -z "$EXEC_COMMAND" ]; then
+                EXEC_COMMAND="ls"  # default
+            fi
+            echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"cluster\",\"arguments\":{\"command\":\"exec\",\"pod_name\":\"$CLUSTER_POD\",\"resource_name\":\"$EXEC_COMMAND\"}}}" >> "$TEMP_REQUESTS"
+        elif [[ "$COMMAND" == "describe_node" ]]; then
+            NODE_NAME="${PARAMETER2:-}"
+            if [ -z "$NODE_NAME" ]; then
+                echo "Error: 'describe_node' requires a node name as the next argument"
+                exit 1
+            fi
+            echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"cluster\",\"arguments\":{\"command\":\"$COMMAND\",\"resource_name\":\"$NODE_NAME\"}}}" >> "$TEMP_REQUESTS"
+        elif [[ "$COMMAND" == "get_endpoints" ]]; then
+            # get_endpoints requires resource_name (service name)
+            RESOURCE="${PARAMETER2:-}"
+            if [ -z "$RESOURCE" ]; then
+                echo "Error: 'get_endpoints' requires a service name as the next argument"
+                exit 1
+            fi
+            echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"cluster\",\"arguments\":{\"command\":\"$COMMAND\",\"resource_name\":\"$RESOURCE\"}}}" >> "$TEMP_REQUESTS"
+        elif [[ "$COMMAND" == "get_configmap" || "$COMMAND" == "get_daemonset" ]]; then
+            RESOURCE="${PARAMETER2:-}"
+            if [ -n "$RESOURCE" ]; then
+                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"cluster\",\"arguments\":{\"command\":\"$COMMAND\",\"resource_name\":\"$RESOURCE\"}}}" >> "$TEMP_REQUESTS"
+            else
+                echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"cluster\",\"arguments\":{\"command\":\"$COMMAND\"}}}" >> "$TEMP_REQUESTS"
+            fi
         else
-            PREFIX="${PARAMETER2:-2001:db8::/32}"
+            echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"cluster\",\"arguments\":{\"command\":\"$COMMAND\"}}}" >> "$TEMP_REQUESTS"
         fi
-    fi
-    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":{"pod_name":"'$POD_NAME'","fib_index":"'$FIB_INDEX'","prefix":"'$PREFIX'"}}}' >> "$TEMP_REQUESTS"
-elif [[ "$TOOL_NAME" =~ ^(vpp_show_tun_interface|vpp_show_hardware_interface)$ ]]; then
-    # Interface-specific tools that need interface_name
-    if [ "$TOOL_NAME" = "vpp_show_tun_interface" ]; then
-        INTERFACE_NAME="${PARAMETER1:-tun1}"
-    else
-        INTERFACE_NAME="${PARAMETER1:-host-eth0}"
-    fi
-    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":{"pod_name":"'$POD_NAME'","interface_name":"'$INTERFACE_NAME'"}}}' >> "$TEMP_REQUESTS"
-elif [[ "$TOOL_NAME" =~ ^(vpp_trace|vpp_pcap|vpp_dispatch)$ ]]; then
-    # Capture tools with optional count and interface
-    if [ -n "$PARAMETER1" ] && [ -n "$PARAMETER2" ]; then
-        # Both parameters provided
-        COUNT="$PARAMETER1"
-        INTERFACE="$PARAMETER2"
-    elif [ -n "$PARAMETER1" ] && [[ "$PARAMETER1" == *" "* ]]; then
-        # Extract count and interface from parameter (format: "count interface")
-        COUNT=$(echo "$PARAMETER1" | cut -d' ' -f1)
-        INTERFACE=$(echo "$PARAMETER1" | cut -d' ' -f2-)
-    else
-        COUNT="${PARAMETER1:-1000}"
-        # Set interface based on tool
-        if [[ "$TOOL_NAME" == "vpp_pcap" ]]; then
-            INTERFACE="any"
-        else
-            INTERFACE="af_packet"
-        fi
-    fi
-    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":{"pod_name":"'$POD_NAME'","count":'$COUNT',"interface":"'$INTERFACE'"}}}' >> "$TEMP_REQUESTS"
-else
-    # Standard case for most tools
-    echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"'$TOOL_NAME'","arguments":{"pod_name":"'$POD_NAME'"}}}' >> "$TEMP_REQUESTS"
-fi
+        ;;
+    vppctl)
+        COMMAND="${PARAMETER1:-show version}"
+        # Check if it's a capture command that needs longer timeout
+        LOWER_CMD=$(echo "$COMMAND" | tr '[:upper:]' '[:lower:]')
+        echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"vppctl\",\"arguments\":{\"command\":\"$COMMAND\",\"pod_name\":\"$POD_NAME\"}}}" >> "$TEMP_REQUESTS"
+        ;;
+    gobgp)
+        COMMAND="${PARAMETER1:-neighbor}"
+        echo "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"gobgp\",\"arguments\":{\"command\":\"$COMMAND\",\"pod_name\":\"$POD_NAME\"}}}" >> "$TEMP_REQUESTS"
+        ;;
+    *)
+        echo "Unknown tool: $TOOL_NAME"
+        echo "Available tools: list, cluster, vppctl, gobgp"
+        exit 1
+        ;;
+esac
 
 # Execute the server with requests
 echo "Executing MCP server..."
@@ -226,11 +142,13 @@ echo ""
 # Create a temporary file for output
 TEMP_OUTPUT=$(mktemp)
 
-# Set timeout based on tool type (capture tools need more time)
-if [[ "$TOOL_NAME" =~ ^(vpp_trace|vpp_pcap|vpp_dispatch)$ ]]; then
-    TIMEOUT="35s"
-else
-    TIMEOUT="5s"
+# Set timeout based on command type (capture commands need more time)
+TIMEOUT="5s"
+if [ "$TOOL_NAME" = "vppctl" ]; then
+    LOWER_CMD=$(echo "${PARAMETER1:-}" | tr '[:upper:]' '[:lower:]')
+    if [[ "$LOWER_CMD" =~ ^(trace|pcap|dispatch) ]]; then
+        TIMEOUT="35s"
+    fi
 fi
 
 # Stream requests with short delays so initialize and tools/call are processed reliably
@@ -241,7 +159,7 @@ fi
     done < "$TEMP_REQUESTS"
 
     # Keep stdin open long enough for command execution and response emission
-    if [[ "$TOOL_NAME" =~ ^(vpp_trace|vpp_pcap|vpp_dispatch)$ ]]; then
+    if [ "$TIMEOUT" = "35s" ]; then
         sleep 32
     else
         sleep 1.5
