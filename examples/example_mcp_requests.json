@@ -1,5 +1,5 @@
 {
-  "description": "Example MCP JSON-RPC requests for testing the VPP MCP server",
+  "description": "Example MCP JSON-RPC requests for testing the VPP MCP server (4-tool architecture)",
   "note": "Send these via stdio to the vpp-mcp-server process",
   "1_initialize": {
     "description": "Initialize the MCP session (required first)",
@@ -18,7 +18,7 @@
     }
   },
   "2_list_tools": {
-    "description": "List all available tools",
+    "description": "List all available tools (should return 4: list, cluster, vppctl, gobgp)",
     "request": {
       "jsonrpc": "2.0",
       "id": 2,
@@ -26,607 +26,493 @@
       "params": {}
     }
   },
-  "3_call_show_version": {
-    "description": "Call vpp_show_version tool",
+  "3_call_list": {
+    "description": "Get comprehensive command reference",
     "request": {
       "jsonrpc": "2.0",
       "id": 3,
       "method": "tools/call",
       "params": {
-        "name": "vpp_show_version",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME"
-        }
+        "name": "list",
+        "arguments": {}
       }
     }
   },
-  "4_call_show_int": {
-    "description": "Call vpp_show_int tool",
+  "4_cluster_get_pods": {
+    "description": "List CalicoVPP pods",
     "request": {
       "jsonrpc": "2.0",
       "id": 4,
       "method": "tools/call",
       "params": {
-        "name": "vpp_show_int",
+        "name": "cluster",
         "arguments": {
-          "pod_name": "YOUR_POD_NAME"
+          "command": "get_pods"
         }
       }
     }
   },
-  "5_call_show_int_addr": {
-    "description": "Call vpp_show_int_addr tool",
+  "5_cluster_get_nodes": {
+    "description": "List cluster nodes",
     "request": {
       "jsonrpc": "2.0",
       "id": 5,
       "method": "tools/call",
       "params": {
-        "name": "vpp_show_int_addr",
+        "name": "cluster",
         "arguments": {
-          "pod_name": "YOUR_POD_NAME"
+          "command": "get_nodes"
         }
       }
     }
   },
-  "6_call_show_hardware_interfaces": {
-    "description": "Call vpp_show_hardware_interfaces tool",
+  "6_cluster_get_configmap": {
+    "description": "Get calico-vpp-config ConfigMap",
     "request": {
       "jsonrpc": "2.0",
       "id": 6,
       "method": "tools/call",
       "params": {
-        "name": "vpp_show_hardware_interfaces",
+        "name": "cluster",
         "arguments": {
-          "pod_name": "YOUR_POD_NAME"
+          "command": "get_configmap"
         }
       }
     }
   },
-  "7_call_show_errors": {
-    "description": "Call vpp_show_errors tool",
+  "7_cluster_get_daemonset": {
+    "description": "Get DaemonSet YAML",
     "request": {
       "jsonrpc": "2.0",
       "id": 7,
       "method": "tools/call",
       "params": {
-        "name": "vpp_show_errors",
+        "name": "cluster",
         "arguments": {
-          "pod_name": "YOUR_POD_NAME"
+          "command": "get_daemonset",
+          "resource_name": "calico-vpp-node"
         }
       }
     }
   },
-  "8_call_show_session": {
-    "description": "Call vpp_show_session_verbose tool",
+  "7b_cluster_get_events": {
+    "description": "Get cluster events sorted by timestamp",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 71,
+      "method": "tools/call",
+      "params": {
+        "name": "cluster",
+        "arguments": {
+          "command": "get_events"
+        }
+      }
+    }
+  },
+  "7c_cluster_get_deployments": {
+    "description": "List deployments in namespace",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 72,
+      "method": "tools/call",
+      "params": {
+        "name": "cluster",
+        "arguments": {
+          "command": "get_deployments"
+        }
+      }
+    }
+  },
+  "7d_cluster_get_services": {
+    "description": "List services in namespace",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 73,
+      "method": "tools/call",
+      "params": {
+        "name": "cluster",
+        "arguments": {
+          "command": "get_services"
+        }
+      }
+    }
+  },
+  "7e_cluster_get_endpoints": {
+    "description": "Get endpoints for a service",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 74,
+      "method": "tools/call",
+      "params": {
+        "name": "cluster",
+        "arguments": {
+          "command": "get_endpoints",
+          "resource_name": "kubernetes"
+        }
+      }
+    }
+  },
+  "7f_cluster_get_replicaset": {
+    "description": "List replicasets",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 75,
+      "method": "tools/call",
+      "params": {
+        "name": "cluster",
+        "arguments": {
+          "command": "get_replicaset"
+        }
+      }
+    }
+  },
+  "7g_cluster_get_ippool": {
+    "description": "Get Calico IPPool resources",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 76,
+      "method": "tools/call",
+      "params": {
+        "name": "cluster",
+        "arguments": {
+          "command": "get_ippool"
+        }
+      }
+    }
+  },
+  "7h_cluster_get_namespaces": {
+    "description": "List all namespaces",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 77,
+      "method": "tools/call",
+      "params": {
+        "name": "cluster",
+        "arguments": {
+          "command": "get_namespaces"
+        }
+      }
+    }
+  },
+  "7i_cluster_top_pods": {
+    "description": "Get resource usage for pods",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 78,
+      "method": "tools/call",
+      "params": {
+        "name": "cluster",
+        "arguments": {
+          "command": "top_pods"
+        }
+      }
+    }
+  },
+  "7j_cluster_top_nodes": {
+    "description": "Get resource usage for nodes",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 79,
+      "method": "tools/call",
+      "params": {
+        "name": "cluster",
+        "arguments": {
+          "command": "top_nodes"
+        }
+      }
+    }
+  },
+  "7k_cluster_exec": {
+    "description": "Execute read-only command in pod",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 80,
+      "method": "tools/call",
+      "params": {
+        "name": "cluster",
+        "arguments": {
+          "command": "exec",
+          "pod_name": "YOUR_POD_NAME",
+          "container": "vpp",
+          "resource_name": "ip a"
+        }
+      }
+    }
+  },
+  "8_cluster_logs_agent": {
+    "description": "Get agent container logs",
     "request": {
       "jsonrpc": "2.0",
       "id": 8,
       "method": "tools/call",
       "params": {
-        "name": "vpp_show_session_verbose",
+        "name": "cluster",
         "arguments": {
-          "pod_name": "YOUR_POD_NAME"
+          "command": "logs",
+          "pod_name": "YOUR_POD_NAME",
+          "container": "agent",
+          "tail_lines": 200
         }
       }
     }
   },
-  "9_call_show_npol_rules": {
-    "description": "Call vpp_show_npol_rules tool",
+  "9_cluster_logs_vpp": {
+    "description": "Get vpp-manager container logs",
     "request": {
       "jsonrpc": "2.0",
       "id": 9,
       "method": "tools/call",
       "params": {
-        "name": "vpp_show_npol_rules",
+        "name": "cluster",
         "arguments": {
-          "pod_name": "YOUR_POD_NAME"
+          "command": "logs",
+          "pod_name": "YOUR_POD_NAME",
+          "container": "vpp",
+          "tail_lines": 200
         }
       }
     }
   },
-  "10_call_show_npol_policies": {
-    "description": "Call vpp_show_npol_policies tool",
+  "10_cluster_describe_pod": {
+    "description": "Describe a CalicoVPP pod",
     "request": {
       "jsonrpc": "2.0",
       "id": 10,
       "method": "tools/call",
       "params": {
-        "name": "vpp_show_npol_policies",
+        "name": "cluster",
         "arguments": {
+          "command": "describe_pod",
           "pod_name": "YOUR_POD_NAME"
         }
       }
     }
   },
-  "11_call_show_npol_ipset": {
-    "description": "Call vpp_show_npol_ipset tool",
+  "11_vppctl_show_version": {
+    "description": "Get VPP version (Kubernetes mode)",
     "request": {
       "jsonrpc": "2.0",
       "id": 11,
       "method": "tools/call",
       "params": {
-        "name": "vpp_show_npol_ipset",
+        "name": "vppctl",
         "arguments": {
+          "command": "show version",
           "pod_name": "YOUR_POD_NAME"
         }
       }
     }
   },
-  "12_call_show_npol_interfaces": {
-    "description": "Call vpp_show_npol_interfaces tool",
+  "12_vppctl_show_int": {
+    "description": "Get VPP interface information",
     "request": {
       "jsonrpc": "2.0",
       "id": 12,
       "method": "tools/call",
       "params": {
-        "name": "vpp_show_npol_interfaces",
+        "name": "vppctl",
         "arguments": {
+          "command": "show int",
           "pod_name": "YOUR_POD_NAME"
         }
       }
     }
   },
-  "13_call_get_pods": {
-    "description": "Call vpp_get_pods tool (no pod_name required)",
+  "13_vppctl_show_int_addr": {
+    "description": "Get VPP interface addresses",
     "request": {
       "jsonrpc": "2.0",
       "id": 13,
       "method": "tools/call",
       "params": {
-        "name": "vpp_get_pods",
-        "arguments": {}
-      }
-    }
-  },
-  "15_call_clear_errors": {
-    "description": "Call vpp_clear_errors tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 15,
-      "method": "tools/call",
-      "params": {
-        "name": "vpp_clear_errors",
+        "name": "vppctl",
         "arguments": {
+          "command": "show int addr",
           "pod_name": "YOUR_POD_NAME"
         }
       }
     }
   },
-  "15_call_tcp_stats": {
-    "description": "Call vpp_tcp_stats tool",
+  "14_vppctl_show_errors": {
+    "description": "Get VPP error counters",
     "request": {
       "jsonrpc": "2.0",
-      "id": 15,
+      "id": 14,
       "method": "tools/call",
       "params": {
-        "name": "vpp_tcp_stats",
+        "name": "vppctl",
         "arguments": {
+          "command": "show errors",
           "pod_name": "YOUR_POD_NAME"
         }
       }
     }
   },
-  "16_call_session_stats": {
-    "description": "Call vpp_session_stats tool",
+  "15_vppctl_show_ip_fib": {
+    "description": "Get IPv4 FIB for table index 0",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 15,
+      "method": "tools/call",
+      "params": {
+        "name": "vppctl",
+        "arguments": {
+          "command": "show ip fib index 0",
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  "16_vppctl_show_ip_fib_prefix": {
+    "description": "Lookup specific prefix in FIB",
     "request": {
       "jsonrpc": "2.0",
       "id": 16,
       "method": "tools/call",
       "params": {
-        "name": "vpp_session_stats",
+        "name": "vppctl",
         "arguments": {
+          "command": "show ip fib index 0 10.0.0.0/24",
           "pod_name": "YOUR_POD_NAME"
         }
       }
     }
   },
-  "17_call_get_logs": {
-    "description": "Call vpp_get_logs tool",
+  "17_vppctl_show_run": {
+    "description": "Get VPP runtime statistics",
     "request": {
       "jsonrpc": "2.0",
       "id": 17,
       "method": "tools/call",
       "params": {
-        "name": "vpp_get_logs",
+        "name": "vppctl",
         "arguments": {
+          "command": "show run",
           "pod_name": "YOUR_POD_NAME"
         }
       }
     }
   },
-  "18_call_show_cnat_translation": {
-    "description": "Call vpp_show_cnat_translation tool",
+  "18_vppctl_trace_capture": {
+    "description": "Capture VPP packet traces (special capture command)",
     "request": {
       "jsonrpc": "2.0",
       "id": 18,
       "method": "tools/call",
       "params": {
-        "name": "vpp_show_cnat_translation",
+        "name": "vppctl",
         "arguments": {
-          "pod_name": "YOUR_POD_NAME"
+          "command": "trace",
+          "pod_name": "YOUR_POD_NAME",
+          "count": 500,
+          "timeout": 30,
+          "interface": "virtio"
         }
       }
     }
   },
-  "19_call_show_cnat_session": {
-    "description": "Call vpp_show_cnat_session tool",
+  "19_vppctl_capture_cleanup": {
+    "description": "Force cleanup of all capture operations",
     "request": {
       "jsonrpc": "2.0",
       "id": 19,
       "method": "tools/call",
       "params": {
-        "name": "vpp_show_cnat_session",
+        "name": "vppctl",
         "arguments": {
+          "command": "capture_cleanup",
           "pod_name": "YOUR_POD_NAME"
         }
       }
     }
   },
-  "20_call_clear_run": {
-    "description": "Call vpp_clear_run tool",
+  "20_vppctl_standalone": {
+    "description": "Run vppctl command in standalone mode (local VPP daemon)",
     "request": {
       "jsonrpc": "2.0",
       "id": 20,
       "method": "tools/call",
       "params": {
-        "name": "vpp_clear_run",
+        "name": "vppctl",
         "arguments": {
-          "pod_name": "YOUR_POD_NAME"
-        }
-      }
-    }
-  },
-  "21_call_show_run": {
-    "description": "Call vpp_show_run tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 21,
-      "method": "tools/call",
-      "params": {
-        "name": "vpp_show_run",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME"
-        }
-      }
-    }
-  },
-  "22_call_show_tun_all": {
-    "description": "Call vpp_show_tun_all tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 22,
-      "method": "tools/call",
-      "params": {
-        "name": "vpp_show_tun_all",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME"
-        }
-      }
-    }
-  },
-  "23_call_show_tun_interface": {
-    "description": "Call vpp_show_tun_interface tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 23,
-      "method": "tools/call",
-      "params": {
-        "name": "vpp_show_tun_interface",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME",
-          "interface_name": "tun1"
-        }
-      }
-    }
-  },
-  "24_call_show_ip_table": {
-    "description": "Call vpp_show_ip_table tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 24,
-      "method": "tools/call",
-      "params": {
-        "name": "vpp_show_ip_table",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME"
-        }
-      }
-    }
-  },
-  "25_call_show_ip6_table": {
-    "description": "Call vpp_show_ip6_table tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 25,
-      "method": "tools/call",
-      "params": {
-        "name": "vpp_show_ip6_table",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME"
-        }
-      }
-    }
-  },
-  "26_call_show_ip_fib": {
-    "description": "Call vpp_show_ip_fib tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 26,
-      "method": "tools/call",
-      "params": {
-        "name": "vpp_show_ip_fib",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME",
-          "fib_index": "0"
-        }
-      }
-    }
-  },
-  "27_call_show_ip6_fib": {
-    "description": "Call vpp_show_ip6_fib tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 27,
-      "method": "tools/call",
-      "params": {
-        "name": "vpp_show_ip6_fib",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME",
-          "fib_index": "0"
-        }
-      }
-    }
-  },
-  "28_call_show_ip_fib_prefix": {
-    "description": "Call vpp_show_ip_fib_prefix tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 28,
-      "method": "tools/call",
-      "params": {
-        "name": "vpp_show_ip_fib_prefix",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME",
-          "fib_index": "0",
-          "prefix": "10.0.0.0/24"
-        }
-      }
-    }
-  },
-  "29_call_show_ip6_fib_prefix": {
-    "description": "Call vpp_show_ip6_fib_prefix tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 29,
-      "method": "tools/call",
-      "params": {
-        "name": "vpp_show_ip6_fib_prefix",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME",
-          "fib_index": "0",
-          "prefix": "2001:db8::/32"
-        }
-      }
-    }
-  },
-  "30_call_vpp_trace": {
-    "description": "Call vpp_trace tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 30,
-      "method": "tools/call",
-      "params": {
-        "name": "vpp_trace",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME",
-          "count": 500,
-          "timeout": 30,
-          "interface": "virtio"
-        }
-      }
-    }
-  },
-  "31_call_vpp_pcap": {
-    "description": "Call vpp_pcap tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 31,
-      "method": "tools/call",
-      "params": {
-        "name": "vpp_pcap",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME"
-        }
-      }
-    }
-  },
-  "32_call_vpp_dispatch": {
-    "description": "Call vpp_dispatch tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 32,
-      "method": "tools/call",
-      "params": {
-        "name": "vpp_dispatch",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME",
-          "count": 500,
-          "timeout": 30,
-          "interface": "virtio"
-        }
-      }
-    }
-  },
-  "33_call_vpp_capture_cleanup": {
-    "description": "Call vpp_capture_cleanup tool - force cleanup of all capture operations",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 33,
-      "method": "tools/call",
-      "params": {
-        "name": "vpp_capture_cleanup",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME"
-        }
-      }
-    }
-  },
-  "34_call_bgp_show_neighbors": {
-    "description": "Call bgp_show_neighbors tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 34,
-      "method": "tools/call",
-      "params": {
-        "name": "bgp_show_neighbors",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME"
-        }
-      }
-    }
-  },
-  "35_call_bgp_show_global_info": {
-    "description": "Call bgp_show_global_info tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 35,
-      "method": "tools/call",
-      "params": {
-        "name": "bgp_show_global_info",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME"
-        }
-      }
-    }
-  },
-  "36_call_bgp_show_global_rib4": {
-    "description": "Call bgp_show_global_rib4 tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 36,
-      "method": "tools/call",
-      "params": {
-        "name": "bgp_show_global_rib4",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME"
-        }
-      }
-    }
-  },
-  "37_call_bgp_show_global_rib6": {
-    "description": "Call bgp_show_global_rib6 tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 37,
-      "method": "tools/call",
-      "params": {
-        "name": "bgp_show_global_rib6",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME"
-        }
-      }
-    }
-  },
-  "38_call_bgp_show_ip": {
-    "description": "Call bgp_show_ip tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 38,
-      "method": "tools/call",
-      "params": {
-        "name": "bgp_show_ip",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME",
-          "parameter": "10.0.0.1"
-        }
-      }
-    }
-  },
-  "39_call_bgp_show_prefix": {
-    "description": "Call bgp_show_prefix tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 39,
-      "method": "tools/call",
-      "params": {
-        "name": "bgp_show_prefix",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME",
-          "parameter": "10.0.0.0/24"
-        }
-      }
-    }
-  },
-  "40_call_bgp_show_neighbor": {
-    "description": "Call bgp_show_neighbor tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 40,
-      "method": "tools/call",
-      "params": {
-        "name": "bgp_show_neighbor",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME",
-          "parameter": "192.168.1.1"
-        }
-      }
-    }
-  },
-  "41_call_get_agent_logs": {
-    "description": "Call get_agent_logs tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 41,
-      "method": "tools/call",
-      "params": {
-        "name": "get_agent_logs",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME",
-          "tail_lines": 200
-        }
-      }
-    }
-  },
-  "42_call_get_vpp_manager_logs": {
-    "description": "Call get_vpp_manager_logs tool",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 42,
-      "method": "tools/call",
-      "params": {
-        "name": "get_vpp_manager_logs",
-        "arguments": {
-          "pod_name": "YOUR_POD_NAME",
-          "tail_lines": 200
-        }
-      }
-    }
-  },
-  "43_call_standalone_show_version": {
-    "description": "Call vpp_show_version in standalone mode (local VPP daemon)",
-    "request": {
-      "jsonrpc": "2.0",
-      "id": 43,
-      "method": "tools/call",
-      "params": {
-        "name": "vpp_show_version",
-        "arguments": {
+          "command": "show version",
           "mode": "standalone"
         }
       }
     }
   },
-  "44_call_standalone_show_int_custom_socket": {
-    "description": "Call vpp_show_int in standalone mode with custom socket path",
+  "21_vppctl_standalone_custom_socket": {
+    "description": "Run vppctl command in standalone mode with custom socket path",
     "request": {
       "jsonrpc": "2.0",
-      "id": 44,
+      "id": 21,
       "method": "tools/call",
       "params": {
-        "name": "vpp_show_int",
+        "name": "vppctl",
         "arguments": {
+          "command": "show int",
           "mode": "standalone",
           "sock_path": "/var/run/vpp/cli.sock"
+        }
+      }
+    }
+  },
+  "22_gobgp_neighbor": {
+    "description": "List all BGP peers",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 22,
+      "method": "tools/call",
+      "params": {
+        "name": "gobgp",
+        "arguments": {
+          "command": "neighbor",
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  "23_gobgp_global_rib_ipv4": {
+    "description": "Show IPv4 BGP RIB",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 23,
+      "method": "tools/call",
+      "params": {
+        "name": "gobgp",
+        "arguments": {
+          "command": "global rib -a ipv4",
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  "24_gobgp_neighbor_detail": {
+    "description": "Show detailed info for a specific BGP peer",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 24,
+      "method": "tools/call",
+      "params": {
+        "name": "gobgp",
+        "arguments": {
+          "command": "neighbor 192.168.1.1",
+          "pod_name": "YOUR_POD_NAME"
+        }
+      }
+    }
+  },
+  "25_gobgp_prefix_lookup": {
+    "description": "Lookup a specific prefix in the BGP RIB",
+    "request": {
+      "jsonrpc": "2.0",
+      "id": 25,
+      "method": "tools/call",
+      "params": {
+        "name": "gobgp",
+        "arguments": {
+          "command": "global rib 10.0.0.0/24",
+          "pod_name": "YOUR_POD_NAME"
         }
       }
     }
@@ -635,7 +521,7 @@
     "description": "How to use these requests",
     "steps": [
       "1. Replace YOUR_POD_NAME with actual VPP pod name (for Kubernetes mode)",
-      "2. For standalone mode, set mode='standalone' and optionally set sock_path",
+      "2. For standalone mode, set mode='standalone' in vppctl arguments",
       "3. Replace parameter values (IPs, prefixes) with actual values",
       "4. Send initialize request first",
       "5. Then send other requests in sequence",

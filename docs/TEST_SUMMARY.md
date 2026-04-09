@@ -3,15 +3,9 @@
 ## Current Branch Status
 
 - MCP server starts in `stdio` and `http` modes.
-- Tool inventory is **44 tools** total:
-  - **35 VPP tools**
-  - **7 BGP tools**
-  - **2 Log tools**
-- Includes Kubernetes health-check support tools:
-  - `vpp_get_pods`
-  - `vpp_show_daemonset_image`
-  - `get_agent_logs`
-  - `get_vpp_manager_logs`
+- Tool inventory is **4 broad tools**: `list`, `cluster`, `vppctl`, `gobgp`
+- Each tool accepts a `command` parameter; the agent/LLM decides which commands to run
+- Cluster tool covers: get_pods, get_nodes, get_configmap, get_daemonset, get_events, get_deployments, get_services, get_endpoints, get_replicaset, get_ippool, get_namespaces, top_pods, top_nodes, logs, describe_pod, describe_node, exec (read-only)
 
 ## Verification Commands
 
@@ -28,11 +22,10 @@ make build
 ./tests/test_http_server.sh
 
 # Single tool checks
-./tests/test_tool.sh <pod-name> vpp_show_version
-./tests/test_tool.sh vpp_get_pods
-./tests/test_tool.sh vpp_show_daemonset_image
-./tests/test_tool.sh <pod-name> get_agent_logs
-./tests/test_tool.sh <pod-name> get_vpp_manager_logs
+./tests/test_tool.sh <pod-name> vppctl "show version"
+./tests/test_tool.sh cluster get_pods
+./tests/test_tool.sh list
+./tests/test_tool.sh <pod-name> gobgp neighbor
 
 # Full demo pass across all tools
 ./tests/demo_test.sh <pod-name>
@@ -40,10 +33,10 @@ make build
 
 ## Notes
 
-- `vpp_trace`, `vpp_pcap`, `vpp_dispatch`, `vpp_capture_cleanup` are mutating capture tools.
-- `vpp_clear_errors` and `vpp_clear_run` are mutating stats-reset tools.
-- BGP tools execute in the `agent` container of the calico-vpp pod.
-- Kubernetes connectivity (`kubectl` context + RBAC) is required for Kubernetes mode tools.
+- Capture commands (`trace`, `pcap`, `dispatch`, `capture_cleanup`) are mutating — pass via `vppctl` tool.
+- Stats-reset commands (`clear errors`, `clear run`) are mutating — pass via `vppctl` tool.
+- `gobgp` tool executes in the `agent` container of the calico-vpp pod.
+- Kubernetes connectivity (`kubectl` context + RBAC) is required for `cluster` and `gobgp` tools.
 
 ## Expected Outputs
 

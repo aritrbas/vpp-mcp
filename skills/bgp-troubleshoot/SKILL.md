@@ -1,3 +1,8 @@
+---
+name: bgp-troubleshoot
+description: CalicoVPP BGP troubleshooting workflow mapped to upstream bgp/troubleshooting.md
+---
+
 # CalicoVPP BGP Troubleshooting Workflow
 
 This runbook maps directly to the upstream guide:
@@ -11,9 +16,9 @@ Use this workflow when pods have missing BGP peers, peers stuck outside `Establ`
 
 ## Step 1: Cluster-wide peering snapshot
 
-1. Call `vpp_get_pods` to discover CalicoVPP pods.
+1. Call `cluster` with `command=get_pods` to discover CalicoVPP pods.
 
-2. For **each** pod returned, call `bgp_show_neighbors` with `pod_name=<pod-name>` to collect per-node BGP peering status.
+2. For **each** pod returned, call `gobgp` with `command=neighbor`, `pod_name=<pod-name>` to collect per-node BGP peering status.
 
 3. Aggregate the results across all pods to build a cluster-wide health picture.
 
@@ -24,7 +29,8 @@ Healthy expectation:
 
 ## Step 2: Per-node peering details (`gobgp neigh`)
 
-For each affected pod, call `bgp_show_neighbors` with:
+For each affected pod, call `gobgp` with:
+- `command=neighbor`
 - `pod_name=<pod-name>`
 
 Interpretation (same as upstream guide):
@@ -34,7 +40,8 @@ Interpretation (same as upstream guide):
 
 ## Step 3: Node BGP identity (`gobgp global`)
 
-Call `bgp_show_global_info` with:
+Call `gobgp` with:
+- `command=global`
 - `pod_name=<pod-name>`
 
 Validate:
@@ -44,9 +51,9 @@ Validate:
 
 ## Step 4: Route visibility (`gobgp global rib -a 4/-a 6`)
 
-Call:
-- `bgp_show_global_rib4` with `pod_name=<pod-name>`
-- `bgp_show_global_rib6` with `pod_name=<pod-name>`
+Call `gobgp` with:
+- `command=global rib -a ipv4`, `pod_name=<pod-name>`
+- `command=global rib -a ipv6`, `pod_name=<pod-name>`
 
 Validate:
 - Expected node/pod prefixes are present
@@ -54,27 +61,25 @@ Validate:
 
 ## Step 5: Targeted prefix/IP lookups
 
-Call:
-- `bgp_show_ip` with `pod_name=<pod-name>`, `parameter=11.0.0.7`
-- `bgp_show_prefix` with `pod_name=<pod-name>`, `parameter=11.0.0.0/8`
-- `bgp_show_neighbor` with `pod_name=<pod-name>`, `parameter=172.18.0.4`
+Call `gobgp` with:
+- `command=global rib 11.0.0.7`, `pod_name=<pod-name>`
+- `command=global rib 11.0.0.0/8`, `pod_name=<pod-name>`
+- `command=neighbor 172.18.0.4`, `pod_name=<pod-name>`
 
 Use these when one route or one peer is suspected.
 
 ## Step 6: If peers are missing or unstable, inspect container logs
 
-Call `get_agent_logs` with:
-- `pod_name=<pod-name>`
-- `tail_lines=300` (or any suitable value)
+Call `cluster` with:
+- `command=logs`, `pod_name=<pod-name>`, `container=agent`, `tail_lines=300`
 
 Look for:
 - Kubernetes API/watch/list errors
 - Repeated reconnect loops
 - Neighbor bring-up or policy errors
 
-If VPP itself is crashing or misbehaving, also call `get_vpp_manager_logs` with:
-- `pod_name=<pod-name>`
-- `tail_lines=300`
+If VPP itself is crashing or misbehaving, also call `cluster` with:
+- `command=logs`, `pod_name=<pod-name>`, `container=vpp`, `tail_lines=300`
 
 Look for:
 - VPP startup failures or panics
@@ -84,18 +89,18 @@ Look for:
 ## Step 7: Correlate with VPP dataplane tables (optional but recommended)
 
 If BGP looks correct but forwarding still fails:
-- Call `vpp_show_ip_fib` with `pod_name=<pod-name>`, `fib_index=0`
-- Call `vpp_show_ip6_fib` with `pod_name=<pod-name>`, `fib_index=0`
-- Call `vpp_show_int_addr` with `pod_name=<pod-name>`
+- Call `vppctl` with `command=show ip fib index 0`, `pod_name=<pod-name>`
+- Call `vppctl` with `command=show ip6 fib index 0`, `pod_name=<pod-name>`
+- Call `vppctl` with `command=show int addr`, `pod_name=<pod-name>`
 
 Look for unresolved/missing routes or incorrect interface addressing.
 
 ## Fast Triage Order
 
-1. `vpp_get_pods` (discover all pods)
-2. `bgp_show_neighbors` on each pod (build cluster-wide view)
-3. `bgp_show_global_info` (on degraded pods)
-4. `bgp_show_global_rib4` + `bgp_show_global_rib6`
-5. `get_agent_logs` (when peers are missing or unstable)
-6. `get_vpp_manager_logs` (when VPP itself is crashing)
-7. `vpp_show_ip_fib`/`vpp_show_ip6_fib` if forwarding mismatch persists
+1. `cluster` → `get_pods` (discover all pods)
+2. `gobgp` → `neighbor` on each pod (build cluster-wide view)
+3. `gobgp` → `global` (on degraded pods)
+4. `gobgp` → `global rib -a ipv4` + `global rib -a ipv6`
+5. `cluster` → `logs` with `container=agent` (when peers are missing or unstable)
+6. `cluster` → `logs` with `container=vpp` (when VPP itself is crashing)
+7. `vppctl` → `show ip fib index 0` / `show ip6 fib index 0` if forwarding mismatch persists

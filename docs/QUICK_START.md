@@ -15,12 +15,14 @@ make build
 ## 3) Test a single tool
 
 ```bash
-# pod-scoped tools
-./tests/test_tool.sh <pod-name> vpp_show_int
+# vppctl tool
+./tests/test_tool.sh <pod-name> vppctl "show int"
 
-# no-pod tools
-./tests/test_tool.sh vpp_get_pods
-./tests/test_tool.sh vpp_show_daemonset_image
+# cluster tool (no pod needed)
+./tests/test_tool.sh cluster get_pods
+
+# list tool
+./tests/test_tool.sh list
 ```
 
 ## 4) Run full demo
@@ -31,73 +33,20 @@ make build
 
 ## Tool Inventory (Current Branch)
 
-Total: **44 tools**
-- **35 VPP tools**
-- **7 BGP tools**
-- **2 Log tools**
+Total: **4 broad tools** that leverage agent/LLM intelligence:
 
-### VPP tools (35)
-1. `vpp_show_version`
-2. `vpp_show_int`
-3. `vpp_show_int_addr`
-4. `vpp_show_hardware_interfaces`
-5. `vpp_show_hardware_interface`
-6. `vpp_show_errors`
-7. `vpp_show_session_verbose`
-8. `vpp_show_npol_rules`
-9. `vpp_show_npol_policies`
-10. `vpp_show_npol_ipset`
-11. `vpp_show_npol_interfaces`
-12. `vpp_clear_errors`
-13. `vpp_tcp_stats`
-14. `vpp_session_stats`
-15. `vpp_get_logs`
-16. `vpp_show_cnat_translation`
-17. `vpp_show_cnat_session`
-18. `vpp_clear_run`
-19. `vpp_show_run`
-20. `vpp_show_ipip_tunnel`
-21. `vpp_show_vxlan_tunnel`
-22. `vpp_show_tun_all`
-23. `vpp_show_tun_interface`
-24. `vpp_show_ip_table`
-25. `vpp_show_ip6_table`
-26. `vpp_show_ip_fib`
-27. `vpp_show_ip6_fib`
-28. `vpp_show_ip_fib_prefix`
-29. `vpp_show_ip6_fib_prefix`
-30. `vpp_trace`
-31. `vpp_pcap`
-32. `vpp_dispatch`
-33. `vpp_capture_cleanup`
-34. `vpp_get_pods`
-35. `vpp_show_daemonset_image`
-
-### BGP tools (7)
-1. `bgp_show_neighbors`
-2. `bgp_show_global_info`
-3. `bgp_show_global_rib4`
-4. `bgp_show_global_rib6`
-5. `bgp_show_ip`
-6. `bgp_show_prefix`
-7. `bgp_show_neighbor`
-
-### Log tools (2)
-1. `get_agent_logs`
-2. `get_vpp_manager_logs`
+1. **`list`** — Returns a comprehensive command reference for all categories
+2. **`cluster`** — Kubernetes cluster operations (get_pods, get_nodes, get_configmap, get_daemonset, get_events, get_deployments, get_services, get_endpoints, get_replicaset, get_ippool, get_namespaces, top_pods, top_nodes, logs, describe_pod, describe_node, exec)
+3. **`vppctl`** — Run any vppctl command on VPP (1000++ commands, including captures)
+4. **`gobgp`** — Run any gobgp command in the CalicoVPP agent container
 
 ## Mode Notes
 
-- Most `vpp_*` command tools support:
+- `vppctl` supports:
   - Kubernetes mode (default): `pod_name` required
   - Standalone mode: set `mode="standalone"` (optional `sock_path`)
-- Kubernetes-specific tools:
-  - `vpp_get_pods`
-  - `vpp_show_daemonset_image`
-  - `vpp_show_hardware_interface`
-  - `vpp_show_tun_interface`
-  - `get_agent_logs`
-  - `get_vpp_manager_logs`
+- `gobgp` and `cluster` are Kubernetes-only
+- Use `list` tool to discover all available commands
 
 ## Manual JSON-RPC example
 
@@ -105,7 +54,7 @@ Total: **44 tools**
 (
   echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
   sleep 0.5
-  echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"vpp_show_daemonset_image","arguments":{}}}'
+  echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"cluster","arguments":{"command":"get_pods"}}}'
   sleep 1
 ) | ./vpp-mcp-server
 ```

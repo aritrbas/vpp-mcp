@@ -74,10 +74,11 @@ http://localhost:8080/sse
 
 ## Tool availability over remote HTTP
 
-Remote clients can use the full current toolset (**44 tools**):
-- 35 VPP tools (including `vpp_show_daemonset_image`)
-- 7 BGP tools
-- 2 Log tools (`get_agent_logs` and `get_vpp_manager_logs`)
+Remote clients can use the full toolset (**4 tools**):
+- `list` — command reference
+- `cluster` — Kubernetes operations (pods, nodes, configmaps, logs, etc.)
+- `vppctl` — any vppctl command (1000++ commands)
+- `gobgp` — any gobgp command
 
 ## Troubleshooting
 
